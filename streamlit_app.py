@@ -13,7 +13,9 @@ def load_lottieurl(url: str):
 
 # アニメーションのURL（歩くロボット）
 # 他のアニメを探す場合は https://lottiefiles.com/ からJSONのURLを取得します
-LOTTIE_WALKING_BOT = "https://assets5.lottiefiles.com/packages/lf20_w51pcehl.json"
+# 書類タスクが走るアニメーション
+LOTTIE_WALKING_BOT = "https://lottie.host/20278684-5751-4180-9681-600004093955/oG4X6R8s2a.json"
+
 lottie_walking = load_lottieurl(LOTTIE_WALKING_BOT)
 
 
