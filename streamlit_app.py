@@ -6,19 +6,20 @@ from streamlit_lottie import st_lottie
 
 # --- Lottieアニメーションを読み込む関数 ---
 def load_lottieurl(url: str):
-    r = requests.get(url)
-    if r.status_code != 200:
+    try:
+        r = requests.get(url)
+        if r.status_code != 200:
+            return None
+        return r.json()
+    except:
         return None
-    return r.json()
 
 # ==========================================
-#  アニメーション設定
-#  「本」が足を生やして歩くイメージのURL
+#  アニメーション設定（安定版）
+#  ※ここを後で好きなURLに書き換えてください
 # ==========================================
-# ※もしこのURLが気に入らない場合は LottieFiles で "walking book" 等で検索し
-#   出てきた "Lottie JSON URL" をここに上書きしてください。
-LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/8s565656.json"
-lottie_book = load_lottieurl(LOTTIE_WALKING_BOOK)
+LOTTIE_RUNNING_TASK = "https://assets5.lottiefiles.com/packages/lf20_w51pcehl.json"
+lottie_running = load_lottieurl(LOTTIE_RUNNING_TASK)
 
 # ページ設定
 st.set_page_config(page_title="Task Walker", page_icon="📘")
@@ -49,42 +50,36 @@ st.title(f"Task Walker: {current_user}のデスク 🏠")
 #  演出パート：移動中のアニメーション表示
 # =========================================
 if st.session_state.is_walking:
-    # 移動中のみ、画面上部に大きくアニメーションを表示
-    st.info(f"📘 タスク（本）が「{st.session_state.walking_target}」のデスクに向かって奥へ歩いています...")
+    st.info(f"📘 タスクが「{st.session_state.walking_target}」に向かって走っています！")
     
-    # 歩くアニメーションを表示
-    if lottie_book:
+    if lottie_running:
         st_lottie(
-            lottie_book,
-            speed=1.0,    # 歩くスピード
+            lottie_running,
+            speed=1.5,
             reverse=False,
             loop=True,
             quality="medium",
-            height=300,   # サイズ感
-            key="walking_book"
+            height=300,
+            key="running_anim"
         )
     else:
-        st.write("📘🚶‍♂️ テクテク...（アニメーション読込エラー）")
+        st.warning("⚠️ アニメーション読み込み失敗（URLを確認してください）")
+        st.write("🏃‍♂️💨（代わりのテキスト表示）")
 
-    # 移動時間の演出（4秒待つ：奥に行くので少し長めに）
-    time.sleep(4.0) 
+    time.sleep(3.5) 
     
-    # 移動完了処理
     st.session_state.is_walking = False
     st.session_state.walking_target = ""
-    st.rerun() # 画面を更新して通常表示に戻す
+    st.rerun()
 
 # -----------------------------------------
 
-# 1. タスク一覧（インボックス）
-# 自分宛てのタスクを抽出
+# 1. タスク一覧
 my_tasks = [t for t in st.session_state.tasks if t['to'] == current_user and t['status'] == '未完了']
 
 if len(my_tasks) > 0:
-    # タスクがある場合：警告表示とノック
-    st.error(f"⚠️ {len(my_tasks)}冊のタスクブックが到着しています！")
+    st.error(f"⚠️ {len(my_tasks)}件のタスクが到着しています！")
     
-    # 視覚的な「ノック」演出
     st.markdown("""
     <div style="font-size: 50px; text-align: center; animation: shake 0.5s infinite;">
     ✊ コンコン！
@@ -106,41 +101,35 @@ if len(my_tasks) > 0:
     </style>
     """, unsafe_allow_html=True)
 
-    # タスクカードの表示
     with st.container():
         for i, task in enumerate(my_tasks):
             st.info(f"📘 **From {task['from']}**: {task['content']}")
-            if st.button("受領・完了（本を閉じる）", key=f"btn_{i}"):
-                # タスクを完了状態にする（リストから削除）
+            if st.button("受領・完了", key=f"btn_{i}"):
                 st.session_state.tasks.remove(task)
-                st.toast("タスク完了！本棚にしまいました。", icon="📚")
+                st.toast("タスク完了！", icon="✅")
                 st.balloons()
                 time.sleep(1)
-                st.rerun() # 画面更新
+                st.rerun()
 else:
-    # 移動中でなければ平和メッセージを表示
     if not st.session_state.is_walking:
-        st.success("現在、手持ちのタスクブックはありません。平和です ☕")
+        st.success("現在、タスクはありません。平和です ☕")
 
 
 st.divider()
 
-# 2. 新しいタスクを走らせる（送信フォーム）
-st.subheader("📤 新しいタスクブックを送り出す")
+# 2. 送信フォーム
+st.subheader("📤 タスクを送り出す")
 
-# 移動中はフォームを操作できないようにする
 with st.form("send_task_form", clear_on_submit=True):
     task_content = st.text_input("タスクの内容", placeholder="例：日報の提出")
     target_user = st.selectbox("誰のところへ歩かせますか？", ["上司", "経理担当", "自分"])
     
-    # 送信ボタン
     submitted = st.form_submit_button(
-        "タスク送信 📘🚶💨", 
+        "タスク送信 🏃💨", 
         disabled=st.session_state.is_walking
     )
 
     if submitted and task_content:
-        # データを保存
         new_task = {
             "content": task_content,
             "from": current_user,
@@ -149,15 +138,12 @@ with st.form("send_task_form", clear_on_submit=True):
         }
         st.session_state.tasks.append(new_task)
         
-        # 移動フラグを立てて画面更新（アニメーションを開始させる）
         st.session_state.is_walking = True
         st.session_state.walking_target = target_user
-        st.toast("いってらっしゃい！気をつけてね！", icon="👋")
+        st.toast("いってらっしゃい！", icon="👋")
         st.rerun()
 
-# --- 全体俯瞰（管理者用） ---
-with st.expander("🦅 全体のタスク状況（管理者ビュー）"):
+# --- 全体俯瞰 ---
+with st.expander("🦅 全体のタスク状況"):
     if st.session_state.tasks:
         st.dataframe(pd.DataFrame(st.session_state.tasks))
-    else:
-        st.write("現在、動いているタスクはありません。")
