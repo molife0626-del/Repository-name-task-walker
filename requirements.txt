@@ -1,3 +1,6 @@
 streamlit
 streamlit-lottie
 requests
+pandas
+openpyxl
+xlsxwriter
