@@ -9,7 +9,7 @@ import plotly.express as px
 # ==========================================
 #  ⚙️ 設定エリア
 # ==========================================
-# ★URLは設定済み
+# ★ご提示いただいたURLを設定済み
 GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
 
 # ユーザー管理
@@ -143,7 +143,12 @@ def forward_task_local(current_id, new_content, new_target, my_name):
     new_id = str(uuid.uuid4())
     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
     
-    # 3. 裏で送信
+    new_task = {
+        "id": new_id, "content": new_content, "from_user": my_name, 
+        "to_user": new_target, "status": "未着手",
+        "date": now_str, "completed_at": ""
+    }
+    
     data = {
         "action": "forward", "id": current_id, "new_id": new_id,
         "new_content": new_content, "new_target": new_target,
@@ -223,7 +228,6 @@ else:
             get_tasks_from_server()
             st.rerun()
         
-        # 自分宛てのみ表示
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
         col1, col2, col3, col4 = st.columns(4)
@@ -304,6 +308,7 @@ else:
                 if content:
                     import datetime
                     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
+                    # 優先度なし
                     new_task = {"id": str(uuid.uuid4()), "content": content, "from_user": current_user, "to_user": target, "status": "ルーティン" if is_routine else "未着手", "date": now_str}
                     create_task_local(new_task)
                     st.session_state.is_walking = True
@@ -311,7 +316,7 @@ else:
                     st.rerun()
                 else: st.error("タイトルを入力してください")
 
-    # 3. 通知
+    # 3. 通知センター
     elif menu == "🔔 通知センター":
         st.subheader("🔔 通知センター")
         if st.button("最新取得"): 
