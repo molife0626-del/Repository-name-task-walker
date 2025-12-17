@@ -9,7 +9,7 @@ import plotly.express as px
 # ==========================================
 #  ⚙️ 設定エリア
 # ==========================================
-# ★ご自身のURLに書き換えてください
+# ★★★重要：ここにあなたのGASのURLを貼り付けてください！★★★
 GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec" 
 
 # ユーザー管理
@@ -35,7 +35,7 @@ st.markdown("""
 [data-testid="stStatusWidget"] > div > div {
     width: 30px;
     height: 30px;
-    border: 3px solid #666; /* 外輪 */
+    border: 4px solid #555; /* 外輪 */
     border-radius: 50%;
     border-top-color: transparent; /* 回転感 */
     position: relative;
@@ -70,6 +70,7 @@ st.markdown("""
 
 # --- 通信関数 ---
 def get_tasks_from_server():
+    """サーバーからデータを取得"""
     try:
         r = requests.get(GAS_URL)
         if r.status_code == 200:
@@ -95,9 +96,9 @@ def safe_post(data):
         try:
             r = requests.post(GAS_URL, json=data)
             if r.status_code != 200:
-                st.error("送信エラーが発生しました")
+                st.error(f"送信エラー: {r.status_code}")
         except:
-            st.error("通信エラーが発生しました")
+            st.error("通信エラー")
             
         time.sleep(1.0)
         get_tasks_from_server()
@@ -211,7 +212,7 @@ else:
             get_tasks_from_server()
             st.rerun()
         
-        # ★自分宛てのみ表示
+        # 自分宛てのみ表示
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
         col1, col2, col3, col4 = st.columns(4)
@@ -229,7 +230,6 @@ else:
             
             with cols[status]:
                 with st.container(border=True):
-                    # シンプルにタイトル表示
                     st.markdown(f"#### 📘 {content}")
                     st.caption(f"依頼: {task.get('from_user')}")
 
@@ -250,10 +250,10 @@ else:
 
                         # バトンタッチ（転送）
                         if status != "完了":
-                            st.markdown("**🏃 次の人へ渡す**")
+                            st.markdown("**🏃 次の人へ渡す（転送）**")
                             n_user = st.selectbox("誰に？", list(USERS.keys()), key=f"u_{t_id}")
-                            n_cont = st.text_input("内容は？", value=f"引継ぎ：{content}", key=f"c_{t_id}")
-                            if st.button("転送実行 🚀", key=f"fw_{t_id}"):
+                            n_cont = st.text_input("内容は？", value=f"引継ぎ：{content}", key=f"nc_{t_id}")
+                            if st.button("転送して完了", key=f"fw_{t_id}"):
                                 forward_task(t_id, n_cont, n_user, current_user)
                         
                         st.divider()
@@ -261,11 +261,13 @@ else:
                         # 編集・削除
                         st.markdown("**📝 タイトル修正**")
                         e_cont = st.text_input("修正後", value=content, key=f"ec_{t_id}")
-                        if st.button("修正保存", key=f"sv_{t_id}"):
-                            update_content(t_id, e_cont)
+                        if e_cont != content:
+                            if st.button("修正保存", key=f"sv_{t_id}"):
+                                update_content(t_id, e_cont)
                         
                         if st.button("🗑 削除", key=f"del_{t_id}"):
                             delete_task(t_id)
+                            st.rerun()
 
     # 2. 新規依頼
     elif menu == "📝 新規タスク依頼":
