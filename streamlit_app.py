@@ -377,4 +377,5 @@ else:
                 selected_user = st.selectbox("担当者", ["全員"] + list(USERS.keys()))
                 view_df = df[df['to_user'] == selected_user] if selected_user != "全員" else df
                 if not view_df.empty:
-                    view_df = view_df
+                    view_df = view_df[['content', 'status', 'priority', 'from_user', 'to_user', 'date']].rename(columns={'content': 'タイトル'})
+                    st.dataframe(view_df, use_container_width=True, hide_index=True)
