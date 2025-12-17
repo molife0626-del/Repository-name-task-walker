@@ -24,32 +24,66 @@ LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/
 
 st.set_page_config(page_title="Task Walker", page_icon="📘", layout="wide")
 
-# --- CSS（回転アニメーション定義） ---
+# --- CSS: ベアリング（丸い回転体）を作る魔法 ---
 st.markdown("""
 <style>
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+/* 1. 標準のRunningアイコンを消す */
+[data-testid="stStatusWidget"] > div > div > img { display: none; }
+
+/* 2. 右上にベアリングを表示 */
+[data-testid="stStatusWidget"] > div > div::after {
+    content: "";
+    display: block;
+    width: 30px;
+    height: 30px;
+    border: 3px solid #555; /* 外輪 */
+    border-radius: 50%;
+    border-top-color: transparent; /* 回転が見えるように一部透明に */
+    position: relative;
+    animation: spin 1s linear infinite;
+    margin-top: 5px;
+    box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #555; /* 内側の層 */
 }
-.bearing-icon {
+
+/* 3. 対応中アイコン用のベアリングCSS */
+.bearing-loader {
   display: inline-block;
-  font-size: 20px;
-  animation: rotate 2s linear infinite; /* 2秒で1回転 */
+  width: 20px;
+  height: 20px;
+  border: 2px solid #666; /* 外輪 */
+  border-radius: 50%;
+  border-top: 2px solid transparent; /* 回転感 */
+  animation: spin 1.5s linear infinite;
+  margin-right: 5px;
+  position: relative;
 }
-.status-box-active {
-  background-color: #fff3cd;
-  color: #856404;
-  padding: 10px;
-  border-radius: 5px;
-  text-align: center;
-  border: 1px solid #ffeeba;
+/* 中の玉を表現 */
+.bearing-loader::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px; right: 2px; bottom: 2px;
+    border: 2px dotted #888; /* ボール */
+    border-radius: 50%;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* カードのデザイン */
+.task-card {
+    padding: 10px;
+    border-radius: 10px;
+    background-color: #ffffff;
+    border: 1px solid #ddd;
+    margin-bottom: 10px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 通信・データ処理関数 ---
 def get_tasks_from_server():
-    """サーバーからデータを取得してキャッシュ更新"""
     try:
         r = requests.get(GAS_URL)
         if r.status_code == 200:
@@ -57,100 +91,74 @@ def get_tasks_from_server():
             if isinstance(data, list):
                 st.session_state['tasks_cache'] = data
                 return data
-    except:
-        pass
+    except: pass
     return []
 
 def get_unique_tasks():
-    """【重要】ID重複を排除して最新のタスクだけを返す"""
-    tasks = st.session_state.get('tasks_cache', [])
-    if not tasks:
-        tasks = get_tasks_from_server()
-    
-    # IDごとにデータを辞書で上書き（後ろにあるデータが優先される＝最新）
+    if 'tasks_cache' not in st.session_state:
+        st.session_state['tasks_cache'] = get_tasks_from_server()
+    tasks = st.session_state['tasks_cache']
     unique_map = {}
     for t in tasks:
-        if 'id' in t:
-            unique_map[t['id']] = t
-    
+        if 'id' in t: unique_map[t['id']] = t
     return list(unique_map.values())
 
-def safe_action(func, *args, **kwargs):
-    """アクション実行時の共通処理"""
-    with st.spinner('処理中...'):
-        func(*args, **kwargs)
-        time.sleep(1.5) # 待機
-        get_tasks_from_server() # 最新データ取得
+def safe_post(data):
+    try: requests.post(GAS_URL, json=data)
+    except: pass
 
-# --- GASへの送信関数群 ---
-def _post_create(data): requests.post(GAS_URL, json=data)
-def _post_update_status(task_id, new_status):
-    data = {"action": "update", "id": task_id, "status": new_status}
-    requests.post(GAS_URL, json=data)
-def _post_update_data(task_id, status=None, content=None, priority=None):
+# --- アクション（即時反映版） ---
+def update_task_local(task_id, new_status=None, new_content=None, new_prio=None):
+    if 'tasks_cache' in st.session_state:
+        for t in st.session_state['tasks_cache']:
+            if t['id'] == task_id:
+                if new_status: t['status'] = new_status
+                if new_content: t['content'] = new_content
+                if new_prio: t['priority'] = new_prio
+                break
     data = {"action": "update", "id": task_id}
-    if status: data["status"] = status
-    if content: data["content"] = content
-    if priority: data["priority"] = priority
-    requests.post(GAS_URL, json=data)
-def _post_delete(task_id):
-    data = {"action": "delete", "id": task_id}
-    requests.post(GAS_URL, json=data)
-def _post_forward(current_id, new_content, new_target, new_prio, my_name):
+    if new_status: data["status"] = new_status
+    if new_content: data["content"] = new_content
+    if new_prio: data["priority"] = new_prio
+    safe_post(data)
+
+def delete_task_local(task_id):
+    if 'tasks_cache' in st.session_state:
+        st.session_state['tasks_cache'] = [t for t in st.session_state['tasks_cache'] if t['id'] != task_id]
+    safe_post({"action": "delete", "id": task_id})
+
+def forward_task_local(current_id, new_content, new_target, new_prio, my_name):
+    update_task_local(current_id, new_status="完了")
+    
+    import datetime
     new_id = str(uuid.uuid4())
+    now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
+    
+    new_task = {
+        "id": new_id, "content": new_content, "from_user": my_name, 
+        "to_user": new_target, "priority": new_prio, "status": "未着手",
+        "date": now_str, "completed_at": ""
+    }
+    st.session_state['tasks_cache'].append(new_task)
+    
     data = {
         "action": "forward", "id": current_id, "new_id": new_id,
         "new_content": new_content, "new_target": new_target,
         "new_priority": new_prio, "from_user": my_name
     }
-    requests.post(GAS_URL, json=data)
+    safe_post(data)
 
-# --- 爆速アクション（キャッシュ先行更新） ---
-def fast_action_update_status(task_id, new_status):
-    # キャッシュを即座に書き換え
-    if 'tasks_cache' in st.session_state:
-        for t in st.session_state['tasks_cache']:
-            if t['id'] == task_id:
-                t['status'] = new_status
-                break
-    # 裏で通信
-    safe_action(_post_update_status, task_id, new_status)
-
-def fast_action_create(new_task):
+def create_task_local(new_task):
     if 'tasks_cache' in st.session_state:
         st.session_state['tasks_cache'].append(new_task)
-    safe_action(_post_create, new_task)
-
-def fast_action_forward(t_id, content, target, prio, my_name):
-    # キャッシュ上で「完了」にする
-    if 'tasks_cache' in st.session_state:
-        for t in st.session_state['tasks_cache']:
-            if t['id'] == t_id:
-                t['status'] = '完了'
-                break
-    safe_action(_post_forward, t_id, content, target, prio, my_name)
-
-def fast_action_delete(t_id):
-    if 'tasks_cache' in st.session_state:
-        st.session_state['tasks_cache'] = [t for t in st.session_state['tasks_cache'] if t['id'] != t_id]
-    safe_action(_post_delete, t_id)
-
-def fast_action_update_data(t_id, status, content):
-    if 'tasks_cache' in st.session_state:
-        for t in st.session_state['tasks_cache']:
-            if t['id'] == t_id:
-                t['status'] = status
-                t['content'] = content
-                break
-    safe_action(_post_update_data, t_id, status, content)
-
+    new_task["action"] = "create"
+    safe_post(new_task)
 
 def load_lottieurl(url):
     try:
         r = requests.get(url)
         return r.json() if r.status_code == 200 else None
-    except:
-        return None
+    except: return None
 
 # --- 認証 ---
 def login():
@@ -166,8 +174,7 @@ def login():
                     st.session_state["user_id"] = uid
                     get_tasks_from_server()
                     st.rerun()
-                else:
-                    st.error("認証失敗")
+                else: st.error("認証失敗")
 
 # ==========================================
 #  メイン処理
@@ -180,9 +187,7 @@ else:
     current_user = st.session_state["user_id"]
     lottie_book = load_lottieurl(LOTTIE_WALKING_BOOK)
     
-    # ★重複排除したデータを取得
     all_tasks = get_unique_tasks()
-    
     my_active_tasks = [t for t in all_tasks if t.get('to_user') == current_user and t.get('status') != '完了']
     alert_msg = f" 🔴{len(my_active_tasks)}" if my_active_tasks else ""
 
@@ -192,13 +197,12 @@ else:
     if current_user in ADMIN_USERS:
         st.sidebar.markdown("---")
         if st.sidebar.button("🦅 管理者画面"): st.session_state["admin_mode"] = True
-            
+    
     st.sidebar.divider()
     if st.sidebar.button("ログアウト"):
         st.session_state["logged_in"] = False
         st.rerun()
 
-    # アニメーション
     if 'is_walking' not in st.session_state: st.session_state.is_walking = False
     if st.session_state.is_walking:
         st.info(f"📘 タスクが「{st.session_state.walking_target}」へ向かっています！")
@@ -211,21 +215,19 @@ else:
     if "マイタスク" in menu:
         col_h, col_b = st.columns([4,1])
         col_h.subheader("マイタスクボード")
-        if col_b.button("🔄 強制更新"): 
+        if col_b.button("🔄 同期"): 
             get_tasks_from_server()
             st.rerun()
         
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user or t.get('from_user') == current_user]
         
         col1, col2, col3, col4 = st.columns(4)
-        
-        # --- カラムヘッダー（回転アニメーション適用） ---
         with col1: st.error("🛑 未着手")
         with col2:
-            # HTMLで回転アイコンを表示
+            # ★ベアリングアイコンを使用
             st.markdown("""
-            <div class="status-box-active">
-                <span class="bearing-icon">⚙️</span> <b>対応中</b>
+            <div style="background-color:#fff3cd; color:#856404; padding:10px; border-radius:5px; text-align:center; border:1px solid #ffeeba;">
+                <div class="bearing-loader"></div> <b>対応中</b>
             </div>
             """, unsafe_allow_html=True)
         with col3: st.success("✅ 完了")
@@ -246,37 +248,35 @@ else:
                     st.markdown(f"#### {prio_icon} {content}")
                     st.caption(f"依頼: {task.get('from_user')} ➡ 担当: {task.get('to_user')}")
 
-                    # --- ワンクリック移動 ---
                     if status == "未着手":
-                        if st.button("着手する ➡", key=f"go_{t_id}", use_container_width=True):
-                            fast_action_update_status(t_id, "対応中")
+                        if st.button("対応開始 ➡", key=f"go_{t_id}", use_container_width=True):
+                            update_task_local(t_id, new_status="対応中")
                             st.rerun()
                             
                     elif status == "対応中":
                         if st.button("完了する ✅", key=f"done_{t_id}", use_container_width=True):
-                            fast_action_update_status(t_id, "完了")
+                            update_task_local(t_id, new_status="完了")
                             st.balloons()
                             st.rerun()
                             
                     elif status == "ルーティン":
                          if st.button("完了 ✅", key=f"r_done_{t_id}", use_container_width=True):
-                            fast_action_update_status(t_id, "完了")
+                            update_task_local(t_id, new_status="完了")
                             st.balloons()
                             st.rerun()
                             
                     elif status == "完了":
                          if st.button("↩ 戻す", key=f"back_{t_id}", use_container_width=True):
-                            fast_action_update_status(t_id, "対応中")
+                            update_task_local(t_id, new_status="対応中")
                             st.rerun()
 
-                    # 詳細メニュー
                     with st.expander("⚙️ 転送・編集"):
                         if status != "完了":
                             st.markdown("**🏃 バトンタッチ**")
                             n_user = st.selectbox("次へ", list(USERS.keys()), key=f"u_{t_id}")
                             n_cont = st.text_input("タイトル", value=f"確認：{content}", key=f"c_{t_id}")
                             if st.button("転送実行 🚀", key=f"fw_{t_id}"):
-                                fast_action_forward(t_id, n_cont, n_user, prio, current_user)
+                                forward_task_local(t_id, n_cont, n_user, prio, current_user)
                                 st.session_state.is_walking = True
                                 st.session_state.walking_target = n_user
                                 st.rerun()
@@ -287,11 +287,11 @@ else:
                         e_stat = st.selectbox("状態", ["未着手", "対応中", "完了", "ルーティン"], index=["未着手", "対応中", "完了", "ルーティン"].index(status), key=f"es_{t_id}")
                         
                         if st.button("保存", key=f"sv_{t_id}"):
-                            fast_action_update_data(t_id, e_stat, e_cont)
+                            update_task_local(t_id, new_status=e_stat, new_content=e_cont)
                             st.rerun()
                         
                         if st.button("🗑 削除", key=f"del_{t_id}"):
-                            fast_action_delete(t_id)
+                            delete_task_local(t_id)
                             st.rerun()
 
     # 2. 新規依頼
@@ -310,12 +310,12 @@ else:
                     import datetime
                     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
                     new_task = {"id": new_id, "content": content, "from_user": current_user, "to_user": target, "priority": priority, "status": status, "date": now_str}
-                    fast_action_create(new_task)
+                    create_task_local(new_task)
                     st.session_state.is_walking = True
                     st.session_state.walking_target = target
                     st.rerun()
 
-    # 3. 通知センター
+    # 3. 通知・分析（変更なし）
     elif menu == "🔔 通知センター":
         st.subheader("🔔 通知センター")
         if st.button("最新取得"): 
@@ -328,10 +328,8 @@ else:
                     st.markdown(f"**{task.get('from_user')}** ➡ あなた")
                     st.markdown(f"##### 「{task.get('content')}」")
                     st.caption(f"状態: {task.get('status')} | {task.get('date')}")
-        else:
-            st.info("通知なし")
+        else: st.info("通知なし")
 
-    # 4. 分析
     elif "チーム分析" in menu:
         st.subheader("📊 分析")
         if st.button("データ更新"): 
@@ -353,7 +351,6 @@ else:
                     c = df['status'].value_counts().reset_index()
                     c.columns=['状態','件数']
                     st.plotly_chart(px.pie(c, values='件数', names='状態'), use_container_width=True)
-                
                 st.divider()
                 st.markdown("##### 🔍 詳細リスト")
                 selected_user = st.selectbox("担当者", ["全員"] + list(USERS.keys()))
