@@ -9,7 +9,7 @@ from streamlit_lottie import st_lottie
 # ==========================================
 
 # 1. GAS URL (ご自身のURL)
-GAS_URL = "https://script.google.com/macros/s/xxxxxxxxxxxxxxxxx/exec"
+GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
 
 # 2. ユーザー管理（ID: パスワード）
 # ※ここで担当者とパスワードを決めます
