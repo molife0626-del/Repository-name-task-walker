@@ -9,7 +9,7 @@ import plotly.express as px
 # ==========================================
 #  ⚙️ 設定エリア
 # ==========================================
-# ★ご自身のURL
+# ★URLは設定済み
 GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
 
 # ユーザー管理
@@ -24,27 +24,32 @@ LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/
 
 st.set_page_config(page_title="Task Walker", page_icon="📘", layout="wide")
 
-# --- CSS: ベアリングアイコン ---
+# --- CSS: ベアリング統一 & 処理中アイコン ---
 st.markdown("""
 <style>
-/* 1. 標準のRunningアイコンを消す */
+/* 1. 標準のRunningアイコン(人)などを消す */
 [data-testid="stStatusWidget"] > div > div > img { display: none; }
 [data-testid="stStatusWidget"] svg { display: none; }
 
-/* 2. 右上の処理中アイコンをベアリングにする */
+/* 2. 右上の処理中アイコンを「ベアリング」にする */
 [data-testid="stStatusWidget"] > div > div {
     width: 30px; height: 30px;
-    border: 3px solid #666; border-radius: 50%;
-    border-top-color: transparent; position: relative;
-    animation: spin 1s linear infinite; margin-top: 5px;
+    border: 3px solid #666; /* 外輪 */
+    border-radius: 50%;
+    border-top-color: transparent; /* 回転感 */
+    position: relative;
+    animation: spin 1s linear infinite;
+    margin-top: 5px;
 }
+/* 中の玉（点線）を追加 */
 [data-testid="stStatusWidget"] > div > div::after {
     content: ""; position: absolute;
     top: 3px; left: 3px; right: 3px; bottom: 3px;
-    border: 2px dotted #888; border-radius: 50%;
+    border: 2px dotted #888; /* ボール */
+    border-radius: 50%;
 }
 
-/* 3. 対応中アイコン */
+/* 3. 対応中アイコン（カラム用） */
 .bearing-loader {
   display: inline-block; width: 20px; height: 20px;
   border: 2px solid #666; border-radius: 50%;
@@ -72,15 +77,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 通信関数 ---
+# --- 通信・データ処理関数 ---
 def get_tasks_from_server():
+    """サーバーからデータを取得し、空白を埋める（安全対策）"""
     try:
         r = requests.get(GAS_URL)
         if r.status_code == 200:
             data = r.json()
-            if isinstance(data, list):
-                st.session_state['tasks_cache'] = data
-                return data
+            if isinstance(data, list) and len(data) > 0:
+                # ★ここで空白対策：pandasを使って空白(NaN)を全て空文字("")に変換
+                df = pd.DataFrame(data)
+                df = df.fillna("") 
+                clean_data = df.to_dict('records')
+                st.session_state['tasks_cache'] = clean_data
+                return clean_data
+            else:
+                # データが空の場合
+                st.session_state['tasks_cache'] = []
+                return []
     except: pass
     return []
 
@@ -90,14 +104,19 @@ def get_unique_tasks():
     tasks = st.session_state['tasks_cache']
     unique_map = {}
     for t in tasks:
-        if 'id' in t: unique_map[t['id']] = t
+        # idがないデータはスキップ
+        if 'id' in t and t['id']: 
+            unique_map[t['id']] = t
     return list(unique_map.values())
 
 def safe_post(data):
+    """送信処理（完了後にリロード）"""
     try: requests.post(GAS_URL, json=data)
     except: pass
+    time.sleep(1.0) # 反映待ち
+    get_tasks_from_server()
 
-# --- アクション ---
+# --- アクション（即時反映） ---
 def update_task_local(task_id, new_status=None, new_content=None):
     if 'tasks_cache' in st.session_state:
         for t in st.session_state['tasks_cache']:
@@ -116,18 +135,15 @@ def delete_task_local(task_id):
     safe_post({"action": "delete", "id": task_id})
 
 def forward_task_local(current_id, new_content, new_target, my_name):
+    # 1. 完了にする
     update_task_local(current_id, new_status="完了")
     
+    # 2. 新規タスク作成
     import datetime
     new_id = str(uuid.uuid4())
     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
     
-    new_task = {
-        "id": new_id, "content": new_content, "from_user": my_name, 
-        "to_user": new_target, "status": "未着手",
-        "date": now_str, "completed_at": ""
-    }
-    
+    # 3. 裏で送信
     data = {
         "action": "forward", "id": current_id, "new_id": new_id,
         "new_content": new_content, "new_target": new_target,
@@ -229,7 +245,6 @@ else:
             
             with cols[status]:
                 with st.container(border=True):
-                    # タイトル（優先度削除）
                     st.markdown(f"#### 📘 {content}")
                     st.caption(f"依頼: {task.get('from_user')}")
 
@@ -289,7 +304,6 @@ else:
                 if content:
                     import datetime
                     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
-                    # 優先度なしで送信
                     new_task = {"id": str(uuid.uuid4()), "content": content, "from_user": current_user, "to_user": target, "status": "ルーティン" if is_routine else "未着手", "date": now_str}
                     create_task_local(new_task)
                     st.session_state.is_walking = True
@@ -339,6 +353,5 @@ else:
                 selected_user = st.selectbox("担当者", ["全員"] + list(USERS.keys()))
                 view_df = df[df['to_user'] == selected_user] if selected_user != "全員" else df
                 if not view_df.empty:
-                    # 優先度を除外して表示
                     view_df = view_df[['content', 'status', 'from_user', 'to_user', 'date']].rename(columns={'content': 'タイトル'})
                     st.dataframe(view_df, use_container_width=True, hide_index=True)
