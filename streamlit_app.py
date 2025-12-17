@@ -24,9 +24,38 @@ LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/
 
 st.set_page_config(page_title="Task Walker", page_icon="📘", layout="wide")
 
-# --- シンプルなCSS ---
+# --- CSS: 右上のベアリング復活 ---
 st.markdown("""
 <style>
+/* 1. 標準のRunningアイコンなどを消す */
+[data-testid="stStatusWidget"] > div > div > img { display: none; }
+[data-testid="stStatusWidget"] svg { display: none; }
+
+/* 2. 右上の処理中アイコンを「ベアリング」にする */
+[data-testid="stStatusWidget"] > div > div {
+    width: 30px;
+    height: 30px;
+    border: 3px solid #666; /* 外輪 */
+    border-radius: 50%;
+    border-top-color: transparent; /* 回転感 */
+    position: relative;
+    animation: spin 1s linear infinite;
+    margin-top: 5px;
+}
+/* 中の玉（点線） */
+[data-testid="stStatusWidget"] > div > div::after {
+    content: "";
+    position: absolute;
+    top: 3px; left: 3px; right: 3px; bottom: 3px;
+    border: 2px dotted #888; /* ボール */
+    border-radius: 50%;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* カードのデザイン */
 .task-card {
     padding: 15px;
@@ -36,14 +65,6 @@ st.markdown("""
     margin-bottom: 10px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
-/* ステータスバッジ */
-.badge-active {
-    background-color: #fff3cd; color: #856404;
-    padding: 5px 10px; border-radius: 4px; border: 1px solid #ffeeba;
-    font-weight: bold; text-align: center;
-}
-/* 標準のRunningアイコンを消す */
-[data-testid="stStatusWidget"] > div > div > img { display: none; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,14 +78,14 @@ def get_tasks_from_server():
             if isinstance(data, list):
                 st.session_state['tasks_cache'] = data
                 return data
-    except: pass
+    except Exception as e:
+        pass
     return []
 
 def get_unique_tasks():
     if 'tasks_cache' not in st.session_state:
         st.session_state['tasks_cache'] = get_tasks_from_server()
     tasks = st.session_state['tasks_cache']
-    # 重複排除
     unique_map = {}
     for t in tasks:
         if 'id' in t: unique_map[t['id']] = t
@@ -73,9 +94,18 @@ def get_unique_tasks():
 def safe_post(data):
     """送信処理（完了後にリロード）"""
     with st.spinner('通信中...'):
-        requests.post(GAS_URL, json=data)
+        try:
+            r = requests.post(GAS_URL, json=data)
+            if r.status_code != 200:
+                st.error(f"送信エラー: {r.status_code}")
+                return False
+        except Exception as e:
+            st.error(f"通信エラー: {e}")
+            return False
+            
         time.sleep(1.0) # 確実に反映させるための待機
         get_tasks_from_server() # 最新データを取得
+        return True
 
 # --- アクション ---
 def update_status(task_id, new_status):
@@ -91,7 +121,6 @@ def delete_task(task_id):
     st.rerun()
 
 def forward_task(current_id, new_content, new_target, my_name):
-    # バトンタッチ処理
     data = {
         "action": "forward", 
         "id": current_id, 
@@ -100,12 +129,10 @@ def forward_task(current_id, new_content, new_target, my_name):
         "new_target": new_target, 
         "from_user": my_name
     }
-    safe_post(data)
-    
-    # 転送演出
-    st.session_state.is_walking = True
-    st.session_state.walking_target = new_target
-    st.rerun()
+    if safe_post(data):
+        st.session_state.is_walking = True
+        st.session_state.walking_target = new_target
+        st.rerun()
 
 def create_task(content, target, my_name, is_routine):
     status = "ルーティン" if is_routine else "未着手"
@@ -117,12 +144,10 @@ def create_task(content, target, my_name, is_routine):
         "to_user": target,
         "status": status
     }
-    safe_post(data)
-    
-    # 送信演出
-    st.session_state.is_walking = True
-    st.session_state.walking_target = target
-    st.rerun()
+    if safe_post(data):
+        st.session_state.is_walking = True
+        st.session_state.walking_target = target
+        st.rerun()
 
 def load_lottieurl(url):
     try:
@@ -189,12 +214,10 @@ else:
             get_tasks_from_server()
             st.rerun()
         
-        # 自分宛てのみ表示
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
         col1, col2, col3, col4 = st.columns(4)
         with col1: st.error("🛑 未着手")
-        # アイコンなしのシンプル表示
         with col2: st.warning("🏃 対応中")
         with col3: st.success("✅ 完了")
         with col4: st.markdown("<div style='background-color:#6f42c1;color:white;padding:10px;border-radius:5px;text-align:center;'>🟣 ルーティン</div>", unsafe_allow_html=True)
@@ -214,7 +237,7 @@ else:
                     if status == "完了" and task.get('completed_at'):
                         st.caption(f"🏁 {task.get('completed_at')}")
 
-                    # --- ワンクリック移動 ---
+                    # --- アクション ---
                     if status == "未着手":
                         if st.button("対応開始 ➡", key=f"go_{t_id}", use_container_width=True):
                             update_status(t_id, "対応中")
@@ -233,7 +256,6 @@ else:
 
                     # 詳細メニュー
                     with st.expander("⚙️ 転送・編集"):
-                        # バトンタッチ
                         if status != "完了":
                             st.markdown("**🏃 バトンタッチ**")
                             n_user = st.selectbox("次へ", list(USERS.keys()), key=f"u_{t_id}")
@@ -260,6 +282,8 @@ else:
             if st.form_submit_button("送信 📘💨", use_container_width=True):
                 if content:
                     create_task(content, target, current_user, is_routine)
+                else:
+                    st.error("タイトルを入力してください")
 
     # 3. 通知
     elif menu == "🔔 通知センター":
