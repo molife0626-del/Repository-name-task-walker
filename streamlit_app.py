@@ -24,45 +24,50 @@ LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/
 
 st.set_page_config(page_title="Task Walker", page_icon="📘", layout="wide")
 
-# --- CSS: ベアリング（丸い回転体）を作る魔法 ---
+# --- CSS: ベアリング統一 & 処理中アイコン ---
 st.markdown("""
 <style>
-/* 1. 標準のRunningアイコンを消す */
+/* 1. 標準のRunningアイコン(人)などを消す */
 [data-testid="stStatusWidget"] > div > div > img { display: none; }
+[data-testid="stStatusWidget"] svg { display: none; }
 
-/* 2. 右上にベアリングを表示 */
-[data-testid="stStatusWidget"] > div > div::after {
-    content: "";
-    display: block;
+/* 2. 右上の処理中アイコンを「ベアリング」にする */
+[data-testid="stStatusWidget"] > div > div {
     width: 30px;
     height: 30px;
-    border: 3px solid #555; /* 外輪 */
+    border: 3px solid #666; /* 外輪 */
     border-radius: 50%;
-    border-top-color: transparent; /* 回転が見えるように一部透明に */
+    border-top-color: transparent; /* 回転感 */
     position: relative;
     animation: spin 1s linear infinite;
     margin-top: 5px;
-    box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 4px #555; /* 内側の層 */
+}
+/* 中の玉（点線）を追加 */
+[data-testid="stStatusWidget"] > div > div::after {
+    content: "";
+    position: absolute;
+    top: 3px; left: 3px; right: 3px; bottom: 3px;
+    border: 2px dotted #888; /* ボール */
+    border-radius: 50%;
 }
 
-/* 3. 対応中アイコン用のベアリングCSS */
+/* 3. 対応中アイコン（カラム用） */
 .bearing-loader {
   display: inline-block;
   width: 20px;
   height: 20px;
-  border: 2px solid #666; /* 外輪 */
+  border: 2px solid #666;
   border-radius: 50%;
-  border-top: 2px solid transparent; /* 回転感 */
+  border-top: 2px solid transparent;
   animation: spin 1.5s linear infinite;
   margin-right: 5px;
   position: relative;
 }
-/* 中の玉を表現 */
 .bearing-loader::after {
     content: "";
     position: absolute;
     top: 2px; left: 2px; right: 2px; bottom: 2px;
-    border: 2px dotted #888; /* ボール */
+    border: 2px dotted #888;
     border-radius: 50%;
 }
 
@@ -71,7 +76,7 @@ st.markdown("""
   100% { transform: rotate(360deg); }
 }
 
-/* カードのデザイン */
+/* カードデザイン */
 .task-card {
     padding: 10px;
     border-radius: 10px;
@@ -107,7 +112,7 @@ def safe_post(data):
     try: requests.post(GAS_URL, json=data)
     except: pass
 
-# --- アクション（即時反映版） ---
+# --- アクション（即時反映） ---
 def update_task_local(task_id, new_status=None, new_content=None, new_prio=None):
     if 'tasks_cache' in st.session_state:
         for t in st.session_state['tasks_cache']:
@@ -128,8 +133,10 @@ def delete_task_local(task_id):
     safe_post({"action": "delete", "id": task_id})
 
 def forward_task_local(current_id, new_content, new_target, new_prio, my_name):
+    # 1. 自分のタスクを完了に
     update_task_local(current_id, new_status="完了")
     
+    # 2. 相手用の新タスク作成
     import datetime
     new_id = str(uuid.uuid4())
     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
@@ -139,8 +146,11 @@ def forward_task_local(current_id, new_content, new_target, new_prio, my_name):
         "to_user": new_target, "priority": new_prio, "status": "未着手",
         "date": now_str, "completed_at": ""
     }
-    st.session_state['tasks_cache'].append(new_task)
+    # 相手のタスクなので自分のキャッシュには追加しない（リストに残ってしまうため）
+    # ただし「チーム分析」など全体データには必要なため、サーバー同期を待つ運用にするか、
+    # ここではあえて追加せず、次回更新時に取得させる
     
+    # 3. 裏で送信
     data = {
         "action": "forward", "id": current_id, "new_id": new_id,
         "new_content": new_content, "new_target": new_target,
@@ -149,8 +159,11 @@ def forward_task_local(current_id, new_content, new_target, new_prio, my_name):
     safe_post(data)
 
 def create_task_local(new_task):
-    if 'tasks_cache' in st.session_state:
-        st.session_state['tasks_cache'].append(new_task)
+    # 自分宛てならキャッシュに追加して即表示
+    if new_task['to_user'] == st.session_state.get('user_id'):
+        if 'tasks_cache' in st.session_state:
+            st.session_state['tasks_cache'].append(new_task)
+    
     new_task["action"] = "create"
     safe_post(new_task)
 
@@ -219,12 +232,12 @@ else:
             get_tasks_from_server()
             st.rerun()
         
-        my_tasks = [t for t in all_tasks if t.get('to_user') == current_user or t.get('from_user') == current_user]
+        # ★修正：自分宛て(to_user)のタスクのみ表示（依頼したタスクは表示しない）
+        my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
         col1, col2, col3, col4 = st.columns(4)
         with col1: st.error("🛑 未着手")
         with col2:
-            # ★ベアリングアイコンを使用
             st.markdown("""
             <div style="background-color:#fff3cd; color:#856404; padding:10px; border-radius:5px; text-align:center; border:1px solid #ffeeba;">
                 <div class="bearing-loader"></div> <b>対応中</b>
@@ -246,8 +259,13 @@ else:
                 with st.container(border=True):
                     prio_icon = "🔥" if prio == "🔥 至急" else "📘"
                     st.markdown(f"#### {prio_icon} {content}")
-                    st.caption(f"依頼: {task.get('from_user')} ➡ 担当: {task.get('to_user')}")
+                    # 依頼元を表示
+                    st.caption(f"依頼: {task.get('from_user')}")
 
+                    if status == "完了" and task.get('completed_at'):
+                        st.caption(f"🏁 {task.get('completed_at')}")
+
+                    # --- ワンクリック移動 ---
                     if status == "未着手":
                         if st.button("対応開始 ➡", key=f"go_{t_id}", use_container_width=True):
                             update_task_local(t_id, new_status="対応中")
@@ -310,12 +328,14 @@ else:
                     import datetime
                     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
                     new_task = {"id": new_id, "content": content, "from_user": current_user, "to_user": target, "priority": priority, "status": status, "date": now_str}
+                    
                     create_task_local(new_task)
+                    
                     st.session_state.is_walking = True
                     st.session_state.walking_target = target
                     st.rerun()
 
-    # 3. 通知・分析（変更なし）
+    # 3. 通知センター
     elif menu == "🔔 通知センター":
         st.subheader("🔔 通知センター")
         if st.button("最新取得"): 
@@ -330,6 +350,7 @@ else:
                     st.caption(f"状態: {task.get('status')} | {task.get('date')}")
         else: st.info("通知なし")
 
+    # 4. 分析
     elif "チーム分析" in menu:
         st.subheader("📊 分析")
         if st.button("データ更新"): 
@@ -356,5 +377,4 @@ else:
                 selected_user = st.selectbox("担当者", ["全員"] + list(USERS.keys()))
                 view_df = df[df['to_user'] == selected_user] if selected_user != "全員" else df
                 if not view_df.empty:
-                    view_df = view_df[['content', 'status', 'priority', 'from_user', 'to_user', 'date']].rename(columns={'content': 'タイトル'})
-                    st.dataframe(view_df, use_container_width=True, hide_index=True)
+                    view_df = view_df
