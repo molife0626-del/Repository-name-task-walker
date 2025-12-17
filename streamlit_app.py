@@ -9,7 +9,7 @@ from streamlit_lottie import st_lottie
 
 # 1. Google Apps ScriptのURL（さっきコピーしたもの）
 # 引用符 "" の中に貼り付けてください
-GAS_URL = "https://script.google.com/macros/s/xxxxxxxxxxxxxxxxx/exec"
+GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
 
 # 2. アプリのパスワード
 APP_PASSWORD = "task" 
