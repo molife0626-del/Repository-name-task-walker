@@ -24,10 +24,10 @@ LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/
 
 st.set_page_config(page_title="Task Walker", page_icon="📘", layout="wide")
 
-# --- CSS: 右上のベアリング復活 ---
+# --- CSS: 右上のベアリングアイコン ---
 st.markdown("""
 <style>
-/* 1. 標準のRunningアイコンなどを消す */
+/* 1. 標準のRunningアイコンを消す */
 [data-testid="stStatusWidget"] > div > div > img { display: none; }
 [data-testid="stStatusWidget"] svg { display: none; }
 
@@ -70,7 +70,6 @@ st.markdown("""
 
 # --- 通信関数 ---
 def get_tasks_from_server():
-    """サーバーからデータを取得"""
     try:
         r = requests.get(GAS_URL)
         if r.status_code == 200:
@@ -78,8 +77,7 @@ def get_tasks_from_server():
             if isinstance(data, list):
                 st.session_state['tasks_cache'] = data
                 return data
-    except Exception as e:
-        pass
+    except: pass
     return []
 
 def get_unique_tasks():
@@ -97,15 +95,12 @@ def safe_post(data):
         try:
             r = requests.post(GAS_URL, json=data)
             if r.status_code != 200:
-                st.error(f"送信エラー: {r.status_code}")
-                return False
-        except Exception as e:
-            st.error(f"通信エラー: {e}")
-            return False
+                st.error("送信エラーが発生しました")
+        except:
+            st.error("通信エラーが発生しました")
             
-        time.sleep(1.0) # 確実に反映させるための待機
-        get_tasks_from_server() # 最新データを取得
-        return True
+        time.sleep(1.0)
+        get_tasks_from_server()
 
 # --- アクション ---
 def update_status(task_id, new_status):
@@ -129,10 +124,11 @@ def forward_task(current_id, new_content, new_target, my_name):
         "new_target": new_target, 
         "from_user": my_name
     }
-    if safe_post(data):
-        st.session_state.is_walking = True
-        st.session_state.walking_target = new_target
-        st.rerun()
+    safe_post(data)
+    
+    st.session_state.is_walking = True
+    st.session_state.walking_target = new_target
+    st.rerun()
 
 def create_task(content, target, my_name, is_routine):
     status = "ルーティン" if is_routine else "未着手"
@@ -144,10 +140,11 @@ def create_task(content, target, my_name, is_routine):
         "to_user": target,
         "status": status
     }
-    if safe_post(data):
-        st.session_state.is_walking = True
-        st.session_state.walking_target = target
-        st.rerun()
+    safe_post(data)
+    
+    st.session_state.is_walking = True
+    st.session_state.walking_target = target
+    st.rerun()
 
 def load_lottieurl(url):
     try:
@@ -214,6 +211,7 @@ else:
             get_tasks_from_server()
             st.rerun()
         
+        # ★自分宛てのみ表示
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
         col1, col2, col3, col4 = st.columns(4)
@@ -231,42 +229,39 @@ else:
             
             with cols[status]:
                 with st.container(border=True):
-                    st.markdown(f"#### {content}")
+                    # シンプルにタイトル表示
+                    st.markdown(f"#### 📘 {content}")
                     st.caption(f"依頼: {task.get('from_user')}")
 
                     if status == "完了" and task.get('completed_at'):
                         st.caption(f"🏁 {task.get('completed_at')}")
 
-                    # --- アクション ---
-                    if status == "未着手":
-                        if st.button("対応開始 ➡", key=f"go_{t_id}", use_container_width=True):
-                            update_status(t_id, "対応中")
-                            
-                    elif status == "対応中":
-                        if st.button("完了する ✅", key=f"done_{t_id}", use_container_width=True):
-                            update_status(t_id, "完了")
-                            
-                    elif status == "ルーティン":
-                         if st.button("完了 ✅", key=f"r_done_{t_id}", use_container_width=True):
-                            update_status(t_id, "完了")
-                            
-                    elif status == "完了":
-                         if st.button("↩ 戻す", key=f"back_{t_id}", use_container_width=True):
-                            update_status(t_id, "対応中")
+                    # --- 操作パネル（シンプル化） ---
+                    with st.expander("⚙️ 操作パネル"):
+                        # ステータス変更
+                        current_idx = ["未着手", "対応中", "完了", "ルーティン"].index(status) if status in ["未着手", "対応中", "完了", "ルーティン"] else 0
+                        new_stat = st.selectbox("状態変更", ["未着手", "対応中", "完了", "ルーティン"], index=current_idx, key=f"st_{t_id}")
+                        
+                        if new_stat != status:
+                            if st.button("状態を更新", key=f"up_{t_id}"):
+                                update_status(t_id, new_stat)
 
-                    # 詳細メニュー
-                    with st.expander("⚙️ 転送・編集"):
+                        st.divider()
+
+                        # バトンタッチ（転送）
                         if status != "完了":
-                            st.markdown("**🏃 バトンタッチ**")
-                            n_user = st.selectbox("次へ", list(USERS.keys()), key=f"u_{t_id}")
-                            n_cont = st.text_input("内容", value=f"確認：{content}", key=f"c_{t_id}")
+                            st.markdown("**🏃 次の人へ渡す**")
+                            n_user = st.selectbox("誰に？", list(USERS.keys()), key=f"u_{t_id}")
+                            n_cont = st.text_input("内容は？", value=f"引継ぎ：{content}", key=f"c_{t_id}")
                             if st.button("転送実行 🚀", key=f"fw_{t_id}"):
                                 forward_task(t_id, n_cont, n_user, current_user)
-                            st.divider()
                         
-                        st.markdown("**📝 編集**")
-                        e_cont = st.text_input("タイトル修正", value=content, key=f"ec_{t_id}")
-                        if st.button("変更保存", key=f"sv_{t_id}"):
+                        st.divider()
+                        
+                        # 編集・削除
+                        st.markdown("**📝 タイトル修正**")
+                        e_cont = st.text_input("修正後", value=content, key=f"ec_{t_id}")
+                        if st.button("修正保存", key=f"sv_{t_id}"):
                             update_content(t_id, e_cont)
                         
                         if st.button("🗑 削除", key=f"del_{t_id}"):
