@@ -1,149 +1,161 @@
 import streamlit as st
 import time
-import pandas as pd
 import requests
 from streamlit_lottie import st_lottie
 
-# --- Lottieアニメーションを読み込む関数 ---
-def load_lottieurl(url: str):
+# ==========================================
+#  ⚙️ 設定エリア
+# ==========================================
+
+# 1. Google Apps ScriptのURL（さっきコピーしたもの）
+# 引用符 "" の中に貼り付けてください
+GAS_URL = "https://script.google.com/macros/s/xxxxxxxxxxxxxxxxx/exec"
+
+# 2. アプリのパスワード
+APP_PASSWORD = "task" 
+
+# 3. アニメーション（歩く本）
+LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/8s565656.json"
+
+# ==========================================
+
+st.set_page_config(page_title="Task Walker", page_icon="📘")
+
+# --- 通信用の関数 ---
+def get_tasks():
+    """スプレッドシートからデータを取得"""
+    try:
+        response = requests.get(GAS_URL)
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return []
+
+def send_task(data):
+    """スプレッドシートへデータを送信"""
+    try:
+        requests.post(GAS_URL, json=data)
+        return True
+    except:
+        return False
+
+def load_lottieurl(url):
     try:
         r = requests.get(url)
-        if r.status_code != 200:
-            return None
-        return r.json()
+        return r.json() if r.status_code == 200 else None
     except:
         return None
 
+# --- 認証機能 ---
+def check_password():
+    if "password_correct" not in st.session_state:
+        st.session_state["password_correct"] = False
+
+    def password_entered():
+        if st.session_state["password"] == APP_PASSWORD:
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if not st.session_state["password_correct"]:
+        st.text_input("🔑 パスワードを入力してください", type="password", on_change=password_entered, key="password")
+        return False
+    return True
+
 # ==========================================
-#  アニメーション設定（安定版）
-#  ※ここを後で好きなURLに書き換えてください
+#  メイン処理
 # ==========================================
-LOTTIE_RUNNING_TASK = "https://assets5.lottiefiles.com/packages/lf20_w51pcehl.json"
-lottie_running = load_lottieurl(LOTTIE_RUNNING_TASK)
 
-# ページ設定
-st.set_page_config(page_title="Task Walker", page_icon="📘")
-
-# --- セッション状態の初期化 ---
-if 'tasks' not in st.session_state:
-    st.session_state.tasks = []
+if check_password():
     
-# 移動中フラグ
-if 'is_walking' not in st.session_state:
-    st.session_state.is_walking = False
-if 'walking_target' not in st.session_state:
-    st.session_state.walking_target = ""
+    lottie_book = load_lottieurl(LOTTIE_WALKING_BOOK)
 
-# --- サイドバー：ユーザー切り替え ---
-st.sidebar.header("👤 ログイン設定")
-current_user = st.sidebar.selectbox(
-    "あなたは誰ですか？",
-    ["自分", "上司", "経理担当"],
-    index=0
-)
-st.sidebar.info(f"現在「{current_user}」として操作中")
+    # セッション初期化
+    if 'is_walking' not in st.session_state:
+        st.session_state.is_walking = False
+    if 'walking_target' not in st.session_state:
+        st.session_state.walking_target = ""
+    if 'walking_speed' not in st.session_state:
+        st.session_state.walking_speed = 1.0
 
-# --- メイン画面 ---
-st.title(f"Task Walker: {current_user}のデスク 🏠")
-
-# =========================================
-#  演出パート：移動中のアニメーション表示
-# =========================================
-if st.session_state.is_walking:
-    st.info(f"📘 タスクが「{st.session_state.walking_target}」に向かって走っています！")
+    # --- サイドバー ---
+    st.sidebar.header("👤 ログイン設定")
+    current_user = st.sidebar.selectbox("あなたは誰ですか？", ["自分", "上司", "経理担当"])
     
-    if lottie_running:
-        st_lottie(
-            lottie_running,
-            speed=1.5,
-            reverse=False,
-            loop=True,
-            quality="medium",
-            height=300,
-            key="running_anim"
-        )
-    else:
-        st.warning("⚠️ アニメーション読み込み失敗（URLを確認してください）")
-        st.write("🏃‍♂️💨（代わりのテキスト表示）")
-
-    time.sleep(3.5) 
-    
-    st.session_state.is_walking = False
-    st.session_state.walking_target = ""
-    st.rerun()
-
-# -----------------------------------------
-
-# 1. タスク一覧
-my_tasks = [t for t in st.session_state.tasks if t['to'] == current_user and t['status'] == '未完了']
-
-if len(my_tasks) > 0:
-    st.error(f"⚠️ {len(my_tasks)}件のタスクが到着しています！")
-    
-    st.markdown("""
-    <div style="font-size: 50px; text-align: center; animation: shake 0.5s infinite;">
-    ✊ コンコン！
-    </div>
-    <style>
-    @keyframes shake {
-      0% { transform: translate(1px, 1px) rotate(0deg); }
-      10% { transform: translate(-1px, -2px) rotate(-1deg); }
-      20% { transform: translate(-3px, 0px) rotate(1deg); }
-      30% { transform: translate(3px, 2px) rotate(0deg); }
-      40% { transform: translate(1px, -1px) rotate(1deg); }
-      50% { transform: translate(-1px, 2px) rotate(-1deg); }
-      60% { transform: translate(-3px, 1px) rotate(0deg); }
-      70% { transform: translate(3px, 1px) rotate(-1deg); }
-      80% { transform: translate(-1px, -1px) rotate(1deg); }
-      90% { transform: translate(1px, 2px) rotate(0deg); }
-      100% { transform: translate(1px, -2px) rotate(-1deg); }
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    with st.container():
-        for i, task in enumerate(my_tasks):
-            st.info(f"📘 **From {task['from']}**: {task['content']}")
-            if st.button("受領・完了", key=f"btn_{i}"):
-                st.session_state.tasks.remove(task)
-                st.toast("タスク完了！", icon="✅")
-                st.balloons()
-                time.sleep(1)
-                st.rerun()
-else:
-    if not st.session_state.is_walking:
-        st.success("現在、タスクはありません。平和です ☕")
-
-
-st.divider()
-
-# 2. 送信フォーム
-st.subheader("📤 タスクを送り出す")
-
-with st.form("send_task_form", clear_on_submit=True):
-    task_content = st.text_input("タスクの内容", placeholder="例：日報の提出")
-    target_user = st.selectbox("誰のところへ歩かせますか？", ["上司", "経理担当", "自分"])
-    
-    submitted = st.form_submit_button(
-        "タスク送信 🏃💨", 
-        disabled=st.session_state.is_walking
-    )
-
-    if submitted and task_content:
-        new_task = {
-            "content": task_content,
-            "from": current_user,
-            "to": target_user,
-            "status": "未完了"
-        }
-        st.session_state.tasks.append(new_task)
+    if st.sidebar.button("🔄 最新データを受信"):
+        st.rerun()
         
-        st.session_state.is_walking = True
-        st.session_state.walking_target = target_user
-        st.toast("いってらっしゃい！", icon="👋")
+    if st.sidebar.button("🔒 ログアウト"):
+        del st.session_state["password_correct"]
+        st.rerun()
+        
+    st.sidebar.info(f"現在「{current_user}」として操作中")
+
+    # --- メイン画面 ---
+    st.title(f"Task Walker: {current_user}のデスク 🏠")
+
+    # 🏃 アニメーション演出
+    if st.session_state.is_walking:
+        speed = st.session_state.walking_speed
+        msg = "🔥 猛ダッシュ！" if speed > 1.5 else "📘 テクテク..."
+        st.info(f"{msg} タスクが「{st.session_state.walking_target}」へ向かっています！")
+        
+        if lottie_book:
+            st_lottie(lottie_book, speed=speed, loop=True, height=250, key="walking")
+        
+        time.sleep(3.5 if speed <= 1.5 else 1.5)
+        st.session_state.is_walking = False
         st.rerun()
 
-# --- 全体俯瞰 ---
-with st.expander("🦅 全体のタスク状況"):
-    if st.session_state.tasks:
-        st.dataframe(pd.DataFrame(st.session_state.tasks))
+    # 1. データ取得と表示
+    all_tasks = get_tasks() # ネットから取得
+    
+    # 自分宛てのタスク
+    my_tasks = [t for t in all_tasks if t['to_user'] == current_user and t['status'] == '未完了']
+
+    if len(my_tasks) > 0:
+        st.error(f"⚠️ {len(my_tasks)}冊のタスクブックが届いています！")
+        st.markdown("""<div style="font-size: 50px; text-align: center; animation: shake 0.5s infinite;">✊ コンコン！</div><style>@keyframes shake {0% { transform: translate(1px, 1px) rotate(0deg); } 50% { transform: translate(-1px, 2px) rotate(-1deg); } 100% { transform: translate(1px, -2px) rotate(-1deg); }}</style>""", unsafe_allow_html=True)
+
+        with st.container():
+            for i, task in enumerate(my_tasks):
+                prio = task.get('priority', '🌲 通常')
+                icon = "🔥" if prio == "🔥 至急" else "📘"
+                st.info(f"{icon} **From {task['from_user']}**: {task['content']}")
+                
+                # ※完了機能（削除）は簡易版のため未実装
+                if st.button("確認しました", key=f"btn_{i}"):
+                    st.toast("確認しました！")
+    else:
+        if not st.session_state.is_walking:
+            st.success("現在、タスクはありません。")
+
+    st.divider()
+
+    # 2. 送信フォーム
+    st.subheader("📤 新しいタスクを送り出す")
+    with st.form("send_task_form", clear_on_submit=True):
+        content = st.text_input("タスクの内容")
+        target = st.selectbox("宛先", ["上司", "経理担当", "自分"])
+        priority = st.radio("優先度", ["🔥 至急", "🌲 通常", "🐢 なる早"], horizontal=True, index=1)
+        
+        if st.form_submit_button("タスク送信 🏃💨", disabled=st.session_state.is_walking):
+            if content:
+                # 送信データ作成
+                new_task = {
+                    "content": content,
+                    "from_user": current_user,
+                    "to_user": target,
+                    "priority": priority,
+                    "status": "未完了"
+                }
+                # 送信実行
+                if send_task(new_task):
+                    st.session_state.is_walking = True
+                    st.session_state.walking_target = target
+                    st.session_state.walking_speed = 2.5 if priority == "🔥 至急" else 1.0
+                    st.rerun()
+                else:
+                    st.error("送信失敗。URL設定を確認してください。")
