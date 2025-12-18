@@ -9,8 +9,8 @@ import plotly.express as px
 # ==========================================
 #  ⚙️ 設定エリア
 # ==========================================
-# ★URL設定済み
-GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
+# ★★★重要：ここにあなたのGASのURLを貼り付けてください！★★★
+GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec" 
 
 # ユーザー管理
 USERS = {
@@ -24,32 +24,49 @@ LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/
 
 st.set_page_config(page_title="Task Walker", page_icon="📘", layout="wide")
 
-# --- CSS: ベアリング統一 ---
+# --- CSS: ベアリングアイコン ---
 st.markdown("""
 <style>
+/* 1. 右上の処理中アイコンをベアリングにする */
 [data-testid="stStatusWidget"] > div > div > img { display: none; }
 [data-testid="stStatusWidget"] svg { display: none; }
 [data-testid="stStatusWidget"] > div > div {
-    width: 30px; height: 30px; border: 3px solid #666; border-radius: 50%;
+    width: 30px; height: 30px;
+    border: 3px solid #666; border-radius: 50%;
     border-top-color: transparent; position: relative;
     animation: spin 1s linear infinite; margin-top: 5px;
 }
 [data-testid="stStatusWidget"] > div > div::after {
-    content: ""; position: absolute; top: 3px; left: 3px; right: 3px; bottom: 3px;
+    content: ""; position: absolute;
+    top: 3px; left: 3px; right: 3px; bottom: 3px;
     border: 2px dotted #888; border-radius: 50%;
 }
+
+/* 2. 対応中アイコン（カラム用） */
 .bearing-loader {
   display: inline-block; width: 20px; height: 20px;
   border: 2px solid #666; border-radius: 50%;
   border-top: 2px solid transparent;
-  animation: spin 1.5s linear infinite; margin-right: 5px; position: relative;
+  animation: spin 1.5s linear infinite;
+  margin-right: 5px; position: relative;
 }
 .bearing-loader::after {
-    content: ""; position: absolute; top: 2px; left: 2px; right: 2px; bottom: 2px;
+    content: ""; position: absolute;
+    top: 2px; left: 2px; right: 2px; bottom: 2px;
     border: 2px dotted #888; border-radius: 50%;
 }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.task-card { padding: 10px; border-radius: 10px; background-color: #ffffff; border: 1px solid #ddd; margin-bottom: 10px; }
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* カードのデザイン */
+.task-card {
+    padding: 10px; border-radius: 10px;
+    background-color: #ffffff; border: 1px solid #ddd;
+    margin-bottom: 10px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -59,9 +76,10 @@ def get_tasks_from_server():
         r = requests.get(GAS_URL)
         if r.status_code == 200:
             data = r.json()
+            # 空白データ対策：pandasでクリーニング
             if isinstance(data, list) and len(data) > 0:
                 df = pd.DataFrame(data)
-                df = df.fillna("")
+                df = df.fillna("") # NaNを空文字に置換
                 clean_data = df.to_dict('records')
                 st.session_state['tasks_cache'] = clean_data
                 return clean_data
@@ -77,16 +95,20 @@ def get_unique_tasks():
     tasks = st.session_state['tasks_cache']
     unique_map = {}
     for t in tasks:
+        # IDがあるものだけ有効
         if 'id' in t and t['id']: unique_map[t['id']] = t
     return list(unique_map.values())
 
 def safe_post(data):
-    try: requests.post(GAS_URL, json=data)
-    except: pass
-    time.sleep(1.0)
-    get_tasks_from_server()
+    """送信処理"""
+    with st.spinner('通信中...'):
+        try:
+            requests.post(GAS_URL, json=data)
+            time.sleep(1.0) # 反映待ち
+            get_tasks_from_server()
+        except: pass
 
-# --- アクション ---
+# --- アクション（即時反映） ---
 def update_task_local(task_id, new_status=None, new_content=None):
     if 'tasks_cache' in st.session_state:
         for t in st.session_state['tasks_cache']:
@@ -105,10 +127,15 @@ def delete_task_local(task_id):
     safe_post({"action": "delete", "id": task_id})
 
 def forward_task_local(current_id, new_content, new_target, my_name):
+    # 1. 完了にする
     update_task_local(current_id, new_status="完了")
     
+    # 2. 相手用の新タスク情報
     new_id = str(uuid.uuid4())
-    # 相手のタスク作成
+    import datetime
+    now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
+    
+    # 3. 送信
     data = {
         "action": "forward", "id": current_id, "new_id": new_id,
         "new_content": new_content, "new_target": new_target,
@@ -188,6 +215,7 @@ else:
             get_tasks_from_server()
             st.rerun()
         
+        # 自分宛てのみ表示
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
         col1, col2, col3, col4 = st.columns(4)
@@ -206,14 +234,13 @@ else:
             if status not in cols: status = '未着手'
             t_id = task.get('id', '')
             content = task.get('content', '（タイトルなし）')
-            logs = task.get('logs', '') # ログ取得
+            logs = task.get('logs', '')
             
             with cols[status]:
                 with st.container(border=True):
                     st.markdown(f"#### 📘 {content}")
                     st.caption(f"依頼: {task.get('from_user')}")
                     
-                    # ログの最後の1行だけ表示（履歴の最新状態）
                     if logs:
                         last_log = logs.split('\n')[-1]
                         st.caption(f"🕒 {last_log}")
@@ -269,6 +296,8 @@ else:
             is_routine = st.checkbox("🟣 ルーティン")
             if st.form_submit_button("送信 📘💨", use_container_width=True):
                 if content:
+                    import datetime
+                    now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
                     new_task = {"id": str(uuid.uuid4()), "content": content, "from_user": current_user, "to_user": target, "status": "ルーティン" if is_routine else "未着手", "logs": "新規作成"}
                     create_task_local(new_task)
                     st.session_state.is_walking = True
@@ -288,8 +317,7 @@ else:
                 with st.container(border=True):
                     st.markdown(f"**{task.get('from_user')}** ➡ あなた")
                     st.markdown(f"##### 「{task.get('content')}」")
-                    if 'logs' in task and task['logs']:
-                        st.caption(f"履歴:\n{task['logs']}")
+                    if 'logs' in task: st.caption(f"履歴: {task['logs']}")
         else: st.info("通知なし")
 
     # 4. 分析
@@ -319,7 +347,7 @@ else:
                 selected_user = st.selectbox("担当者", ["全員"] + list(USERS.keys()))
                 view_df = df[df['to_user'] == selected_user] if selected_user != "全員" else df
                 if not view_df.empty:
-                    # ログ列があれば表示
                     cols = ['content', 'status', 'from_user', 'to_user']
                     if 'logs' in view_df.columns: cols.append('logs')
-                    st.dataframe(view_df[cols], use_container_width=True, hide_index=True)
+                    view_df = view_df[cols].rename(columns={'content': 'タイトル'})
+                    st.dataframe(view_df, use_container_width=True, hide_index=True)
