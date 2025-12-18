@@ -21,20 +21,18 @@ USERS = {
     "経理": "3333",
     "メンバーA": "aaaa"
 }
-# ★ここに含まれるユーザーだけが「全員のデータ」を見ることができます
 ADMIN_USERS = ["上司", "経理"]
 
-# ★アイコンを「M」に変更
 st.set_page_config(page_title="MBS Task Walker", page_icon="Ⓜ️", layout="wide")
 
 # ==========================================
-#  🎨 デザイン (CSS) - PC/スマホ最適化
+#  🎨 デザイン (CSS) - 見切れ修正 & レイアウト
 # ==========================================
 st.markdown("""
 <style>
-    /* 1. 全体の余白調整 */
+    /* 1. 全体の余白調整 (見切れ対策: 上部余白を確保) */
     .block-container {
-        padding-top: 1.5rem !important;
+        padding-top: 5rem !important; /* 1.5remから5remへ変更 */
         padding-bottom: 3rem !important;
     }
     
@@ -108,10 +106,11 @@ st.markdown("""
         font-family: sans-serif; opacity: 0; animation: textFade 0.5s 1.5s forwards;
     }
     
-    /* 9. 管理者バッジ */
-    .admin-badge {
-        background-color: #E65100; color: white; padding: 2px 8px;
-        border-radius: 10px; font-size: 0.7em; margin-left: 5px; vertical-align: middle;
+    /* 9. 完了タスクエリアの装飾 (右サイド用) */
+    .done-area {
+        background-color: #EEEEEE;
+        padding: 10px;
+        border-radius: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -274,7 +273,7 @@ else:
         st.rerun()
 
     current_user = st.session_state["user_id"]
-    is_admin = current_user in ADMIN_USERS  # 管理者判定
+    is_admin = current_user in ADMIN_USERS
     
     all_tasks = get_unique_tasks()
     
@@ -285,14 +284,10 @@ else:
     if len(my_active_tasks) > 0: alert_msg += f" 🔴{len(my_active_tasks)}"
     if len(my_done_reports) > 0: alert_msg += f" ✅{len(my_done_reports)}"
 
-    # サイドバー表示（管理者ならバッジを表示）
     user_label = f"Ⓜ️ {current_user}"
-    if is_admin:
-        user_label += " 🛡️" # 管理者マーク
+    if is_admin: user_label += " 🛡️"
     
     st.sidebar.title(user_label)
-    
-    # 管理者画面メニューは削除
     menu = st.sidebar.radio("メニュー", [f"📊 マイタスク{alert_msg}", "📝 新規タスク依頼", "🔔 通知センター", "📈 チーム分析"])
     
     st.sidebar.divider()
@@ -302,118 +297,121 @@ else:
 
     # 1. マイタスクボード
     if "マイタスク" in menu:
-        col_h, col_b = st.columns([4,1])
-        col_h.subheader("📊 マイタスクボード")
-        if col_b.button("🔄 同期"): 
-            get_tasks_from_server()
-            st.rerun()
-        
-        my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
-        
-        col1, col2, col3 = st.columns(3)
-        with col1: st.error("🛑 未着手")
-        with col2:
-            st.markdown("""
-            <div style="background-color:#FFF3E0; color:#E65100; padding:10px; border-radius:5px; text-align:center; border:1px solid #FFCC80;">
-                <div class="bearing-loader"></div> <b>対応中</b>
-            </div>""", unsafe_allow_html=True)
-        with col3: st.markdown("<div style='background-color:#E65100;color:white;padding:10px;border-radius:5px;text-align:center;'>🟣 ルーティン</div>", unsafe_allow_html=True)
-        
-        cols = {"未着手": col1, "対応中": col2, "ルーティン": col3}
-        done_tasks = [] 
+        # ★レイアウト: メインエリア(3) : 完了リスト(1)
+        main_area, right_sidebar = st.columns([3, 1], gap="large")
 
-        for task in my_tasks:
-            status = task.get('status', '未着手')
-            if status == "完了":
-                done_tasks.append(task)
-                continue
-            if status not in cols: status = '未着手'
-
-            t_id = task.get('id', '')
-            content = task.get('content', '（タイトルなし）')
-            logs = task.get('logs', '')
+        with main_area:
+            col_h, col_b = st.columns([4,1])
+            col_h.subheader("📊 マイタスクボード")
+            if col_b.button("🔄 同期", use_container_width=True): 
+                get_tasks_from_server()
+                st.rerun()
             
-            with cols[status]:
-                with st.container(border=True):
-                    st.markdown(f"#### 📘 {content}")
-                    st.caption(f"依頼: {task.get('from_user')}")
-                    if logs:
-                        last_log = logs.split('\n')[-1]
-                        st.caption(f"🕒 {last_log}")
-                    
-                    if st.session_state.confirm_done_id == t_id:
-                        st.info("どうしますか？")
-                        cc1, cc2 = st.columns(2)
-                        with cc1:
-                            if st.button("完結 ✅", key=f"fin_{t_id}", use_container_width=True):
-                                update_task_local(t_id, new_status="完了")
-                                st.session_state.confirm_done_id = None
-                                st.balloons()
-                                st.rerun()
-                        with cc2:
-                            if st.button("渡す 🏃", key=f"next_{t_id}", use_container_width=True):
-                                st.session_state.confirm_done_id = None
-                                st.session_state.forwarding_id = t_id
-                                st.rerun()
-                        if st.button("キャンセル", key=f"cncl_{t_id}", use_container_width=True):
-                             st.session_state.confirm_done_id = None
-                             st.rerun()
-                    elif st.session_state.forwarding_id == t_id:
-                        st.markdown("##### 🏃 バトンパス")
-                        with st.form(key=f"fwd_form_{t_id}"):
-                            n_user = st.selectbox("誰に？", list(USERS.keys()))
-                            n_cont = st.text_input("内容は？", value=content)
-                            if st.form_submit_button("バトンを渡す 🚀"):
-                                forward_task_local(t_id, n_cont, n_user, current_user)
-                                st.session_state.forwarding_id = None
-                                st.session_state.show_anim = True
-                                st.rerun()
-                        if st.button("戻る", key=f"back_fwd_{t_id}"):
-                            st.session_state.forwarding_id = None
-                            st.rerun()
-                    else:
-                        if status == "未着手":
-                            b1, b2 = st.columns(2)
-                            with b1:
-                                if st.button("着手 🛠", key=f"st_{t_id}", use_container_width=True):
-                                    update_task_local(t_id, new_status="対応中")
+            my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
+            
+            # メイン3カラム
+            col1, col2, col3 = st.columns(3)
+            with col1: st.error("🛑 未着手")
+            with col2:
+                st.markdown("""
+                <div style="background-color:#FFF3E0; color:#E65100; padding:10px; border-radius:5px; text-align:center; border:1px solid #FFCC80;">
+                    <div class="bearing-loader"></div> <b>対応中</b>
+                </div>""", unsafe_allow_html=True)
+            with col3: st.markdown("<div style='background-color:#E65100;color:white;padding:10px;border-radius:5px;text-align:center;'>🟣 ルーティン</div>", unsafe_allow_html=True)
+            
+            cols = {"未着手": col1, "対応中": col2, "ルーティン": col3}
+            done_tasks = []
+
+            for task in my_tasks:
+                status = task.get('status', '未着手')
+                if status == "完了":
+                    done_tasks.append(task)
+                    continue
+                if status not in cols: status = '未着手'
+
+                t_id = task.get('id', '')
+                content = task.get('content', '（タイトルなし）')
+                logs = task.get('logs', '')
+                
+                with cols[status]:
+                    with st.container(border=True):
+                        st.markdown(f"#### 📘 {content}")
+                        st.caption(f"依頼: {task.get('from_user')}")
+                        if logs:
+                            last_log = logs.split('\n')[-1]
+                            st.caption(f"🕒 {last_log}")
+                        
+                        if st.session_state.confirm_done_id == t_id:
+                            st.info("どうしますか？")
+                            cc1, cc2 = st.columns(2)
+                            with cc1:
+                                if st.button("完結 ✅", key=f"fin_{t_id}", use_container_width=True):
+                                    update_task_local(t_id, new_status="完了")
+                                    st.session_state.confirm_done_id = None
+                                    st.balloons()
                                     st.rerun()
-                            with b2:
-                                if st.button("即完 ✅", key=f"q_{t_id}", use_container_width=True):
+                            with cc2:
+                                if st.button("渡す 🏃", key=f"next_{t_id}", use_container_width=True):
+                                    st.session_state.confirm_done_id = None
+                                    st.session_state.forwarding_id = t_id
+                                    st.rerun()
+                            if st.button("キャンセル", key=f"cncl_{t_id}", use_container_width=True):
+                                st.session_state.confirm_done_id = None
+                                st.rerun()
+                        elif st.session_state.forwarding_id == t_id:
+                            st.markdown("##### 🏃 バトンパス")
+                            with st.form(key=f"fwd_form_{t_id}"):
+                                n_user = st.selectbox("誰に？", list(USERS.keys()))
+                                n_cont = st.text_input("内容は？", value=content)
+                                if st.form_submit_button("バトンを渡す 🚀"):
+                                    forward_task_local(t_id, n_cont, n_user, current_user)
+                                    st.session_state.forwarding_id = None
+                                    st.session_state.show_anim = True
+                                    st.rerun()
+                            if st.button("戻る", key=f"back_fwd_{t_id}"):
+                                st.session_state.forwarding_id = None
+                                st.rerun()
+                        else:
+                            if status == "未着手":
+                                b1, b2 = st.columns(2)
+                                with b1:
+                                    if st.button("着手 🛠", key=f"st_{t_id}", use_container_width=True):
+                                        update_task_local(t_id, new_status="対応中")
+                                        st.rerun()
+                                with b2:
+                                    if st.button("即完 ✅", key=f"q_{t_id}", use_container_width=True):
+                                        st.session_state.confirm_done_id = t_id
+                                        st.rerun()
+                            elif status == "対応中":
+                                if st.button("完了 ✅", key=f"dn_{t_id}", use_container_width=True):
                                     st.session_state.confirm_done_id = t_id
                                     st.rerun()
-                        elif status == "対応中":
-                            if st.button("完了 ✅", key=f"dn_{t_id}", use_container_width=True):
-                                st.session_state.confirm_done_id = t_id
-                                st.rerun()
-                        elif status == "ルーティン":
-                             if st.button("完了 ✅", key=f"rdn_{t_id}", use_container_width=True):
-                                update_task_local(t_id, new_status="完了")
-                                st.balloons()
-                                st.rerun()
-                        with st.expander("⚙️ 編集"):
-                            e_cont = st.text_input("修正", value=content, key=f"ec_{t_id}")
-                            if st.button("保存", key=f"sv_{t_id}"):
-                                update_task_local(t_id, new_content=e_cont)
-                                st.rerun()
-                            if st.button("🗑 削除", key=f"del_{t_id}"):
-                                delete_task_local(t_id)
-                                st.rerun()
+                            elif status == "ルーティン":
+                                if st.button("完了 ✅", key=f"rdn_{t_id}", use_container_width=True):
+                                    update_task_local(t_id, new_status="完了")
+                                    st.balloons()
+                                    st.rerun()
+                            with st.expander("⚙️ 編集"):
+                                e_cont = st.text_input("修正", value=content, key=f"ec_{t_id}")
+                                if st.button("保存", key=f"sv_{t_id}"):
+                                    update_task_local(t_id, new_content=e_cont)
+                                    st.rerun()
+                                if st.button("🗑 削除", key=f"del_{t_id}"):
+                                    delete_task_local(t_id)
+                                    st.rerun()
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander(f"🗄️ 完了済み履歴 ({len(done_tasks)})", expanded=False):
+        # ★右カラム (完了タスクエリア)
+        with right_sidebar:
+            st.markdown("#### ✅ 完了済み")
             if done_tasks:
                 for t in done_tasks:
                     with st.container(border=True):
-                        c1, c2 = st.columns([5, 1])
-                        with c1:
-                            st.markdown(f"**{t.get('content')}**")
-                            st.caption(f"Log: {t.get('logs').splitlines()[-1] if t.get('logs') else ''}")
-                        with c2:
-                            if st.button("戻す", key=f"re_{t.get('id')}"):
-                                update_task_local(t.get('id'), new_status="対応中")
-                                st.rerun()
-            else: st.caption("完了タスクはありません")
+                        st.markdown(f"**{t.get('content')}**")
+                        if st.button("戻す", key=f"re_{t.get('id')}", use_container_width=True):
+                            update_task_local(t.get('id'), new_status="対応中")
+                            st.rerun()
+            else:
+                st.caption("完了タスクなし")
 
     # 2. 新規依頼
     elif menu == "📝 新規タスク依頼":
@@ -458,7 +456,7 @@ else:
                         st.markdown(f"##### 「{task.get('content')}」")
             else: st.info("完了報告はありません")
 
-    # 4. 分析 (権限ロジック実装)
+    # 4. 分析
     elif "チーム分析" in menu:
         st.subheader("📊 チーム分析・レポート")
         if st.button("データ更新"): 
@@ -467,27 +465,19 @@ else:
 
         if all_tasks:
             df = pd.DataFrame(all_tasks)
-            
-            # --- 🛡️ 権限によるビュー制御 ---
-            view_df = pd.DataFrame() # 空で初期化
+            view_df = pd.DataFrame()
             
             if is_admin:
-                # 管理者: 表示対象を選択可能
                 st.markdown(f"#### 🛡️ 管理者メニュー: {current_user}")
-                st.info("管理者はチーム全体のタスク状況を閲覧・切り替え可能です。")
-                
                 view_mode = st.radio("表示対象", ["全員のデータ", "メンバー個別"], horizontal=True)
-                
                 if view_mode == "全員のデータ":
                     view_df = df
                 else:
                     target_member = st.selectbox("メンバーを選択", list(USERS.keys()))
                     view_df = df[(df['to_user'] == target_member) | (df['from_user'] == target_member)]
             else:
-                # 一般ユーザー: 自分関連のみ
                 view_df = df[(df['to_user'] == current_user) | (df['from_user'] == current_user)]
 
-            # --- グラフ描画 ---
             if not view_df.empty and 'status' in view_df.columns:
                 active_df = view_df[view_df['status'] != '完了']
                 col1, col2 = st.columns(2)
@@ -506,8 +496,6 @@ else:
                 
                 st.divider()
                 st.markdown("##### 🔍 タスク詳細リスト")
-                # ログ列は長くなるので隠すか整形
                 cols_to_show = ['content', 'status', 'from_user', 'to_user']
                 st.dataframe(view_df[cols_to_show].rename(columns={'content':'タイトル', 'status':'状態', 'from_user':'依頼者', 'to_user':'担当'}), use_container_width=True, hide_index=True)
-            else:
-                st.info("表示できるデータがありません")
+            else: st.info("表示できるデータがありません")
