@@ -168,8 +168,9 @@ else:
     
     # バッジ計算（自分宛ての未完了）
     my_active_tasks = [t for t in all_tasks if t.get('to_user') == current_user and t.get('status') != '完了']
-    # 完了通知（自分が依頼して、完了になったもの）
-    my_done_reports = [t for t in all_tasks if t.get('from_user') == current_user and t.get('status') == '完了']
+    
+    # ★修正：完了通知（自分が依頼して、完了になったもの、かつ相手がやったもの）
+    my_done_reports = [t for t in all_tasks if t.get('from_user') == current_user and t.get('status') == '完了' and t.get('to_user') != current_user]
     
     alert_msg = ""
     if len(my_active_tasks) > 0: alert_msg += f" 🔴{len(my_active_tasks)}"
@@ -291,7 +292,7 @@ else:
                     st.rerun()
                 else: st.error("タイトルを入力してください")
 
-    # 3. 通知 (機能強化！)
+    # 3. 通知 (機能強化)
     elif menu == "🔔 通知センター":
         st.subheader("🔔 通知センター")
         if st.button("最新取得"): 
@@ -300,8 +301,8 @@ else:
         
         # 通知1: 自分への依頼
         tasks_for_me = [t for t in all_tasks if t.get('to_user') == current_user]
-        # 通知2: 自分が依頼して、完了になったもの
-        tasks_done = [t for t in all_tasks if t.get('from_user') == current_user and t.get('status') == '完了']
+        # 通知2: 完了報告（自分が依頼して、相手が完了させたもの）
+        tasks_done = [t for t in all_tasks if t.get('from_user') == current_user and t.get('status') == '完了' and t.get('to_user') != current_user]
 
         tab1, tab2 = st.tabs([f"📩 あなたへの依頼 ({len(tasks_for_me)})", f"✅ 完了報告 ({len(tasks_done)})"])
         
@@ -313,7 +314,7 @@ else:
                         st.markdown(f"##### 「{task.get('content')}」")
                         st.caption(f"状態: {task.get('status')}")
                         if 'logs' in task: st.caption(f"履歴: {task['logs']}")
-            else: st.info("現在、あなたへの依頼はありません")
+            else: st.info("依頼はありません")
 
         with tab2:
             if tasks_done:
