@@ -22,34 +22,91 @@ USERS = {
 ADMIN_USERS = ["上司", "経理"]
 LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/8s565656.json"
 
-st.set_page_config(page_title="Task Walker", page_icon="📘", layout="wide")
+st.set_page_config(page_title="Task Walker", page_icon="🍊", layout="wide")
 
-# --- CSS: ベアリング統一 ---
+# ==========================================
+#  🎨 デザイン (CSS) - オレンジテーマ
+# ==========================================
 st.markdown("""
 <style>
-[data-testid="stStatusWidget"] > div > div > img { display: none; }
-[data-testid="stStatusWidget"] svg { display: none; }
-[data-testid="stStatusWidget"] > div > div {
-    width: 30px; height: 30px; border: 3px solid #666; border-radius: 50%;
-    border-top-color: transparent; position: relative;
-    animation: spin 1s linear infinite; margin-top: 5px;
-}
-[data-testid="stStatusWidget"] > div > div::after {
-    content: ""; position: absolute; top: 3px; left: 3px; right: 3px; bottom: 3px;
-    border: 2px dotted #888; border-radius: 50%;
-}
-.bearing-loader {
-  display: inline-block; width: 20px; height: 20px;
-  border: 2px solid #666; border-radius: 50%;
-  border-top: 2px solid transparent;
-  animation: spin 1.5s linear infinite; margin-right: 5px; position: relative;
-}
-.bearing-loader::after {
-    content: ""; position: absolute; top: 2px; left: 2px; right: 2px; bottom: 2px;
-    border: 2px dotted #888; border-radius: 50%;
-}
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-.task-card { padding: 10px; border-radius: 10px; background-color: #ffffff; border: 1px solid #ddd; margin-bottom: 10px; }
+    /* 全体のフォントと背景 */
+    .stApp {
+        background-color: #FFFAF5; /* ごく薄いオレンジ白 */
+    }
+
+    /* サイドバーの背景 */
+    [data-testid="stSidebar"] {
+        background-color: #FFF3E0; /* 薄いオレンジ */
+        border-right: 1px solid #FFCC80;
+    }
+
+    /* ヘッダーの装飾 */
+    h1, h2, h3 {
+        color: #E65100 !important; /* 濃いオレンジ */
+        font-family: 'Helvetica Neue', sans-serif;
+    }
+    
+    /* ボタンのスタイル (オレンジ統一) */
+    .stButton > button {
+        background-color: white;
+        color: #E65100;
+        border: 2px solid #E65100;
+        border-radius: 8px;
+        font-weight: bold;
+        transition: all 0.3s;
+    }
+    .stButton > button:hover {
+        background-color: #E65100;
+        color: white;
+        border-color: #E65100;
+    }
+
+    /* タブのスタイル */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: white;
+        border-radius: 5px;
+        border: 1px solid #FFCC80;
+        color: #E65100;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #E65100 !important;
+        color: white !important;
+    }
+
+    /* カードデザイン (st.container) の装飾 */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: #FFE0B2 !important;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(230, 81, 0, 0.1); /* オレンジの影 */
+    }
+
+    /* 右上の処理中アニメーション */
+    [data-testid="stStatusWidget"] > div > div > img { display: none; }
+    [data-testid="stStatusWidget"] svg { display: none; }
+    [data-testid="stStatusWidget"] > div > div {
+        border: 3px solid #FFCC80;
+        border-top-color: transparent;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* 対応中のグルグル */
+    .bearing-loader {
+        display: inline-block; width: 20px; height: 20px;
+        border: 2px solid #FF9800;
+        border-radius: 50%;
+        border-top: 2px solid transparent;
+        animation: spin 1.5s linear infinite;
+        margin-right: 5px; position: relative;
+    }
+
+    /* カラム間の隙間調整 */
+    div[data-testid="column"] { gap: 0.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -105,21 +162,14 @@ def delete_task_local(task_id):
     safe_post({"action": "delete", "id": task_id})
 
 def forward_task_local(current_id, new_content, new_target, my_name):
-    # 1. 完了にする
+    # 完了にする
     update_task_local(current_id, new_status="完了")
     
-    # 2. 新規タスク作成
     import datetime
     new_id = str(uuid.uuid4())
     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
     
-    # ログにも「バトンパス」と記録
-    new_task = {
-        "id": new_id, "content": new_content, "from_user": my_name, 
-        "to_user": new_target, "status": "未着手",
-        "date": now_str, "logs": "🏃バトンパスにより発生"
-    }
-    
+    # 送信
     data = {
         "action": "forward", "id": current_id, "new_id": new_id,
         "new_content": new_content, "new_target": new_target,
@@ -142,19 +192,20 @@ def load_lottieurl(url):
 
 # --- 認証 ---
 def login():
-    st.markdown("<h1 style='text-align: center;'>🔐 Task Walker</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color:#E65100;'>🍊 Task Walker</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
-        with st.form("login"):
-            uid = st.text_input("ユーザーID")
-            pwd = st.text_input("パスワード", type="password")
-            if st.form_submit_button("ログイン", use_container_width=True):
-                if uid in USERS and USERS[uid] == pwd:
-                    st.session_state["logged_in"] = True
-                    st.session_state["user_id"] = uid
-                    get_tasks_from_server()
-                    st.rerun()
-                else: st.error("認証失敗")
+        with st.container(border=True):
+            with st.form("login"):
+                uid = st.text_input("ユーザーID")
+                pwd = st.text_input("パスワード", type="password")
+                if st.form_submit_button("ログイン", use_container_width=True):
+                    if uid in USERS and USERS[uid] == pwd:
+                        st.session_state["logged_in"] = True
+                        st.session_state["user_id"] = uid
+                        get_tasks_from_server()
+                        st.rerun()
+                    else: st.error("認証失敗")
 
 # ==========================================
 #  メイン処理
@@ -214,11 +265,11 @@ else:
         with col1: st.error("🛑 未着手")
         with col2:
             st.markdown("""
-            <div style="background-color:#fff3cd; color:#856404; padding:10px; border-radius:5px; text-align:center; border:1px solid #ffeeba;">
+            <div style="background-color:#FFF3E0; color:#E65100; padding:10px; border-radius:5px; text-align:center; border:1px solid #FFCC80;">
                 <div class="bearing-loader"></div> <b>対応中</b>
             </div>""", unsafe_allow_html=True)
         with col3: st.success("✅ 完了")
-        with col4: st.markdown("<div style='background-color:#6f42c1;color:white;padding:10px;border-radius:5px;text-align:center;'>🟣 ルーティン</div>", unsafe_allow_html=True)
+        with col4: st.markdown("<div style='background-color:#E65100;color:white;padding:10px;border-radius:5px;text-align:center;'>🟣 ルーティン</div>", unsafe_allow_html=True)
         cols = {"未着手": col1, "対応中": col2, "完了": col3, "ルーティン": col4}
 
         for task in my_tasks:
@@ -249,7 +300,6 @@ else:
                                 st.balloons()
                                 st.rerun()
                         with cc2:
-                            # ★ここを変更：「転送」→「バトン」
                             if st.button("バトンを渡す 🏃", key=f"to_next_{t_id}", use_container_width=True):
                                 st.session_state.confirm_done_id = None
                                 st.session_state.forwarding_id = t_id
@@ -264,7 +314,6 @@ else:
                         with st.form(key=f"fwd_form_{t_id}"):
                             n_user = st.selectbox("誰に渡しますか？", list(USERS.keys()))
                             n_cont = st.text_input("タスク内容は？", value=content)
-                            # ★ボタン変更
                             if st.form_submit_button("バトンを渡す 🚀"):
                                 forward_task_local(t_id, n_cont, n_user, current_user)
                                 st.session_state.forwarding_id = None
