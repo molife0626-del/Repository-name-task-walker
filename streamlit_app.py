@@ -16,12 +16,12 @@ GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd
 
 # ユーザー管理
 USERS = {
-    "自分": "1111",
-    "上司": "2222",
-    "経理": "3333",
+    "森": "3457",
+    "社長": "3457",
+    "メンバーB": "3333",
     "メンバーA": "aaaa"
 }
-ADMIN_USERS = ["上司", "経理"]
+ADMIN_USERS = ["森", "社長"]
 
 st.set_page_config(page_title="MBS Task Walker", page_icon="Ⓜ️", layout="wide")
 
