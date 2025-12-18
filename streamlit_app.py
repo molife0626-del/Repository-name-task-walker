@@ -21,21 +21,21 @@ USERS = {
     "経理": "3333",
     "メンバーA": "aaaa"
 }
+# ★ここに含まれるユーザーだけが「全員のデータ」を見ることができます
 ADMIN_USERS = ["上司", "経理"]
 
 # ★アイコンを「M」に変更
 st.set_page_config(page_title="MBS Task Walker", page_icon="Ⓜ️", layout="wide")
 
 # ==========================================
-#  🎨 デザイン (CSS) - スマホ対応 & アニメーション
+#  🎨 デザイン (CSS) - PC/スマホ最適化
 # ==========================================
 st.markdown("""
 <style>
-    /* 1. 全体の余白調整 (スマホで見やすく) */
+    /* 1. 全体の余白調整 */
     .block-container {
-        padding-top: 1rem !important;
-        padding-bottom: 2rem !important;
-        max-width: 100% !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 3rem !important;
     }
     
     /* 2. 背景色 */
@@ -51,7 +51,7 @@ st.markdown("""
     .stButton > button {
         background-color: white; color: #E65100; border: 2px solid #E65100;
         border-radius: 8px; font-weight: bold; transition: all 0.3s;
-        width: 100%; /* スマホで押しやすく */
+        width: 100%;
     }
     .stButton > button:hover {
         background-color: #E65100; color: white; border-color: #E65100;
@@ -65,70 +65,69 @@ st.markdown("""
 
     /* 7. スマホ対応 (レスポンシブ) */
     @media (max-width: 768px) {
-        /* カラムを縦積みにする */
         [data-testid="column"] {
-            width: 100% !important;
-            flex: 1 1 auto !important;
-            min-width: 100% !important;
+            width: 100% !important; flex: 1 1 auto !important; min-width: 100% !important;
         }
-        /* 動画のサイズ調整 */
-        video { width: 100% !important; height: auto !important; }
-        /* 文字サイズ調整 */
-        h1 { font-size: 2em !important; }
+        h1 { font-size: 1.8em !important; }
     }
 
-    /* 8. バトンパス・アニメーション定義 */
-    @keyframes runRight {
-        0% { left: -10%; transform: rotate(0deg); }
-        20% { transform: rotate(-10deg); }
-        40% { transform: rotate(10deg); }
-        60% { transform: rotate(-10deg); }
-        100% { left: 50%; transform: rotate(0deg); }
+    /* 8. バトンパス・アニメーション */
+    @keyframes runIn {
+        0% { left: -20%; transform: rotate(0deg); }
+        20% { transform: rotate(-5deg); }
+        40% { transform: rotate(5deg); }
+        100% { left: 45%; transform: rotate(0deg); }
     }
-    @keyframes waitLeft {
-        0% { right: -10%; opacity: 0; }
-        100% { right: 40%; opacity: 1; }
+    @keyframes receive {
+        0% { opacity: 0; transform: scale(0.8); }
+        100% { opacity: 1; transform: scale(1); }
     }
-    @keyframes pop {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.5); }
-        100% { transform: scale(1); }
+    @keyframes textFade {
+        0% { opacity: 0; top: 60%; }
+        100% { opacity: 1; top: 55%; }
     }
     
-    .anim-container {
+    .anim-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(255, 255, 255, 0.9); z-index: 9999;
+        background: rgba(255, 250, 245, 0.95); z-index: 99999;
         display: flex; align-items: center; justify-content: center;
-        overflow: hidden;
+        overflow: hidden; pointer-events: none;
     }
-    .runner {
-        position: absolute; font-size: 5rem; top: 40%;
-        animation: runRight 1.5s linear forwards;
+    
+    .runner-book {
+        position: absolute; font-size: 6rem; top: 40%;
+        animation: runIn 1.2s ease-out forwards;
     }
-    .receiver {
-        position: absolute; font-size: 5rem; top: 40%; right: 40%;
-        opacity: 0; animation: waitLeft 0.5s 1s forwards;
+    .receiver-book {
+        position: absolute; font-size: 6rem; top: 40%; right: 40%;
+        opacity: 0; animation: receive 0.5s 1.2s forwards;
     }
-    .success-msg {
-        position: absolute; top: 60%; width: 100%; text-align: center;
+    .pass-message {
+        position: absolute; width: 100%; text-align: center;
         font-size: 2rem; color: #E65100; font-weight: bold;
-        opacity: 0; animation: waitLeft 0.5s 1.8s forwards;
+        font-family: sans-serif; opacity: 0; animation: textFade 0.5s 1.5s forwards;
+    }
+    
+    /* 9. 管理者バッジ */
+    .admin-badge {
+        background-color: #E65100; color: white; padding: 2px 8px;
+        border-radius: 10px; font-size: 0.7em; margin-left: 5px; vertical-align: middle;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- バトンパスアニメーション表示関数 ---
+# --- バトンパスアニメーション ---
 def show_baton_pass_animation():
     anim_html = """
-    <div class="anim-container">
-        <div class="runner">📘💨</div>
-        <div class="receiver">📙✨</div>
-        <div class="success-msg">Nice Pass! バトンを繋ぎました</div>
+    <div class="anim-overlay">
+        <div class="runner-book">📘💨</div>
+        <div class="receiver-book">📙✨</div>
+        <div class="pass-message">Nice Pass! バトンを繋ぎました</div>
     </div>
     """
     placeholder = st.empty()
     placeholder.markdown(anim_html, unsafe_allow_html=True)
-    time.sleep(2.5) # アニメーション再生時間
+    time.sleep(3.0)
     placeholder.empty()
 
 # --- 動画表示関数 ---
@@ -230,7 +229,6 @@ def login():
     ]
     phrase = random.choice(CATCHPHRASES)
 
-    # スマホ対応: gapを調整
     col_left, col_right = st.columns([1.5, 1], gap="medium")
 
     with col_left:
@@ -270,13 +268,14 @@ if "show_anim" not in st.session_state: st.session_state.show_anim = False
 if not st.session_state["logged_in"]:
     login()
 else:
-    # アニメーション再生処理
     if st.session_state.show_anim:
         show_baton_pass_animation()
         st.session_state.show_anim = False
         st.rerun()
 
     current_user = st.session_state["user_id"]
+    is_admin = current_user in ADMIN_USERS  # 管理者判定
+    
     all_tasks = get_unique_tasks()
     
     my_active_tasks = [t for t in all_tasks if t.get('to_user') == current_user and t.get('status') != '完了']
@@ -286,12 +285,15 @@ else:
     if len(my_active_tasks) > 0: alert_msg += f" 🔴{len(my_active_tasks)}"
     if len(my_done_reports) > 0: alert_msg += f" ✅{len(my_done_reports)}"
 
-    st.sidebar.title(f"Ⓜ️ {current_user}")
-    menu = st.sidebar.radio("メニュー", [f"📊 マイタスク{alert_msg}", "📝 新規タスク依頼", "🔔 通知センター", "📈 チーム分析"])
+    # サイドバー表示（管理者ならバッジを表示）
+    user_label = f"Ⓜ️ {current_user}"
+    if is_admin:
+        user_label += " 🛡️" # 管理者マーク
     
-    if current_user in ADMIN_USERS:
-        st.sidebar.markdown("---")
-        if st.sidebar.button("🦅 管理者画面"): st.session_state["admin_mode"] = True
+    st.sidebar.title(user_label)
+    
+    # 管理者画面メニューは削除
+    menu = st.sidebar.radio("メニュー", [f"📊 マイタスク{alert_msg}", "📝 新規タスク依頼", "🔔 通知センター", "📈 チーム分析"])
     
     st.sidebar.divider()
     if st.sidebar.button("ログアウト"):
@@ -308,7 +310,6 @@ else:
         
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
-        # ★3カラムに変更（完了を隠す）
         col1, col2, col3 = st.columns(3)
         with col1: st.error("🛑 未着手")
         with col2:
@@ -319,21 +320,18 @@ else:
         with col3: st.markdown("<div style='background-color:#E65100;color:white;padding:10px;border-radius:5px;text-align:center;'>🟣 ルーティン</div>", unsafe_allow_html=True)
         
         cols = {"未着手": col1, "対応中": col2, "ルーティン": col3}
-        
-        # 完了タスク格納用リスト
-        done_tasks = []
+        done_tasks = [] 
 
         for task in my_tasks:
             status = task.get('status', '未着手')
-            t_id = task.get('id', '')
-            content = task.get('content', '（タイトルなし）')
-            logs = task.get('logs', '')
-
             if status == "完了":
                 done_tasks.append(task)
                 continue
-
             if status not in cols: status = '未着手'
+
+            t_id = task.get('id', '')
+            content = task.get('content', '（タイトルなし）')
+            logs = task.get('logs', '')
             
             with cols[status]:
                 with st.container(border=True):
@@ -360,7 +358,6 @@ else:
                         if st.button("キャンセル", key=f"cncl_{t_id}", use_container_width=True):
                              st.session_state.confirm_done_id = None
                              st.rerun()
-
                     elif st.session_state.forwarding_id == t_id:
                         st.markdown("##### 🏃 バトンパス")
                         with st.form(key=f"fwd_form_{t_id}"):
@@ -369,12 +366,11 @@ else:
                             if st.form_submit_button("バトンを渡す 🚀"):
                                 forward_task_local(t_id, n_cont, n_user, current_user)
                                 st.session_state.forwarding_id = None
-                                st.session_state.show_anim = True # ★アニメ再生フラグON
+                                st.session_state.show_anim = True
                                 st.rerun()
                         if st.button("戻る", key=f"back_fwd_{t_id}"):
                             st.session_state.forwarding_id = None
                             st.rerun()
-
                     else:
                         if status == "未着手":
                             b1, b2 = st.columns(2)
@@ -395,33 +391,29 @@ else:
                                 update_task_local(t_id, new_status="完了")
                                 st.balloons()
                                 st.rerun()
-                        
-                        if status != "完了":
-                            with st.expander("⚙️ 編集・削除"):
-                                e_cont = st.text_input("修正", value=content, key=f"ec_{t_id}")
-                                if st.button("保存", key=f"sv_{t_id}"):
-                                    update_task_local(t_id, new_content=e_cont)
-                                    st.rerun()
-                                if st.button("🗑 削除", key=f"del_{t_id}"):
-                                    delete_task_local(t_id)
-                                    st.rerun()
+                        with st.expander("⚙️ 編集"):
+                            e_cont = st.text_input("修正", value=content, key=f"ec_{t_id}")
+                            if st.button("保存", key=f"sv_{t_id}"):
+                                update_task_local(t_id, new_content=e_cont)
+                                st.rerun()
+                            if st.button("🗑 削除", key=f"del_{t_id}"):
+                                delete_task_local(t_id)
+                                st.rerun()
 
-        # ★完了タスクは下部のExpanderへ
         st.markdown("<br>", unsafe_allow_html=True)
-        with st.expander(f"✅ 完了済みタスク ({len(done_tasks)})", expanded=False):
+        with st.expander(f"🗄️ 完了済み履歴 ({len(done_tasks)})", expanded=False):
             if done_tasks:
                 for t in done_tasks:
                     with st.container(border=True):
-                        col_a, col_b = st.columns([4, 1])
-                        with col_a:
-                            st.markdown(f"~~{t.get('content')}~~")
+                        c1, c2 = st.columns([5, 1])
+                        with c1:
+                            st.markdown(f"**{t.get('content')}**")
                             st.caption(f"Log: {t.get('logs').splitlines()[-1] if t.get('logs') else ''}")
-                        with col_b:
-                            if st.button("戻す", key=f"ret_{t.get('id')}"):
+                        with c2:
+                            if st.button("戻す", key=f"re_{t.get('id')}"):
                                 update_task_local(t.get('id'), new_status="対応中")
                                 st.rerun()
-            else:
-                st.info("完了タスクはありません")
+            else: st.caption("完了タスクはありません")
 
     # 2. 新規依頼
     elif menu == "📝 新規タスク依頼":
@@ -435,11 +427,11 @@ else:
                     import datetime
                     new_task = {"id": str(uuid.uuid4()), "content": content, "from_user": current_user, "to_user": target, "status": "ルーティン" if is_routine else "未着手", "logs": "新規作成"}
                     create_task_local(new_task)
-                    st.session_state.show_anim = True # ★ここでもアニメ再生
+                    st.session_state.show_anim = True
                     st.rerun()
                 else: st.error("タイトルを入力してください")
 
-    # 3. 通知 (前回と同じ)
+    # 3. 通知
     elif menu == "🔔 通知センター":
         st.subheader("🔔 通知センター")
         if st.button("最新取得"): 
@@ -458,7 +450,6 @@ else:
                         st.markdown(f"##### 「{task.get('content')}」")
                         st.caption(f"状態: {task.get('status')}")
             else: st.info("依頼はありません")
-
         with tab2:
             if tasks_done:
                 for task in reversed(tasks_done):
@@ -467,25 +458,56 @@ else:
                         st.markdown(f"##### 「{task.get('content')}」")
             else: st.info("完了報告はありません")
 
-    # 4. 分析
+    # 4. 分析 (権限ロジック実装)
     elif "チーム分析" in menu:
-        st.subheader("📊 分析")
+        st.subheader("📊 チーム分析・レポート")
         if st.button("データ更新"): 
             get_tasks_from_server()
             st.rerun()
+
         if all_tasks:
             df = pd.DataFrame(all_tasks)
-            if 'status' in df.columns:
-                active_df = df[df['status'] != '完了']
+            
+            # --- 🛡️ 権限によるビュー制御 ---
+            view_df = pd.DataFrame() # 空で初期化
+            
+            if is_admin:
+                # 管理者: 表示対象を選択可能
+                st.markdown(f"#### 🛡️ 管理者メニュー: {current_user}")
+                st.info("管理者はチーム全体のタスク状況を閲覧・切り替え可能です。")
+                
+                view_mode = st.radio("表示対象", ["全員のデータ", "メンバー個別"], horizontal=True)
+                
+                if view_mode == "全員のデータ":
+                    view_df = df
+                else:
+                    target_member = st.selectbox("メンバーを選択", list(USERS.keys()))
+                    view_df = df[(df['to_user'] == target_member) | (df['from_user'] == target_member)]
+            else:
+                # 一般ユーザー: 自分関連のみ
+                view_df = df[(df['to_user'] == current_user) | (df['from_user'] == current_user)]
+
+            # --- グラフ描画 ---
+            if not view_df.empty and 'status' in view_df.columns:
+                active_df = view_df[view_df['status'] != '完了']
                 col1, col2 = st.columns(2)
                 with col1:
-                    st.markdown("##### 🏃 残タスク")
+                    st.markdown("##### 🏃 残タスク状況")
                     if not active_df.empty:
                         c = active_df['to_user'].value_counts().reset_index()
                         c.columns=['担当','件数']
                         st.plotly_chart(px.bar(c, x='担当', y='件数', color='担当'), use_container_width=True)
+                    else: st.caption("残タスクはありません")
                 with col2:
-                    st.markdown("##### 📋 割合")
-                    c = df['status'].value_counts().reset_index()
+                    st.markdown("##### 📋 タスク状態の内訳")
+                    c = view_df['status'].value_counts().reset_index()
                     c.columns=['状態','件数']
                     st.plotly_chart(px.pie(c, values='件数', names='状態'), use_container_width=True)
+                
+                st.divider()
+                st.markdown("##### 🔍 タスク詳細リスト")
+                # ログ列は長くなるので隠すか整形
+                cols_to_show = ['content', 'status', 'from_user', 'to_user']
+                st.dataframe(view_df[cols_to_show].rename(columns={'content':'タイトル', 'status':'状態', 'from_user':'依頼者', 'to_user':'担当'}), use_container_width=True, hide_index=True)
+            else:
+                st.info("表示できるデータがありません")
