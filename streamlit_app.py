@@ -18,7 +18,7 @@ GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd
 USERS = {
     "森": "3457",
     "社長": "3457",
-    "メンバーB": "3333",
+    "経理": "3333",
     "メンバーA": "aaaa"
 }
 ADMIN_USERS = ["森", "社長"]
@@ -26,13 +26,13 @@ ADMIN_USERS = ["森", "社長"]
 st.set_page_config(page_title="MBS Task Walker", page_icon="Ⓜ️", layout="wide")
 
 # ==========================================
-#  🎨 デザイン (CSS) - 見切れ修正 & レイアウト
+#  🎨 デザイン (CSS)
 # ==========================================
 st.markdown("""
 <style>
-    /* 1. 全体の余白調整 (見切れ対策: 上部余白を確保) */
+    /* 1. 全体の余白調整 */
     .block-container {
-        padding-top: 5rem !important; /* 1.5remから5remへ変更 */
+        padding-top: 5rem !important;
         padding-bottom: 3rem !important;
     }
     
@@ -69,7 +69,7 @@ st.markdown("""
         h1 { font-size: 1.8em !important; }
     }
 
-    /* 8. バトンパス・アニメーション */
+    /* 8. アニメーション定義 */
     @keyframes runIn {
         0% { left: -20%; transform: rotate(0deg); }
         20% { transform: rotate(-5deg); }
@@ -106,12 +106,22 @@ st.markdown("""
         font-family: sans-serif; opacity: 0; animation: textFade 0.5s 1.5s forwards;
     }
     
-    /* 9. 完了タスクエリアの装飾 (右サイド用) */
-    .done-area {
-        background-color: #EEEEEE;
-        padding: 10px;
-        border-radius: 10px;
+    /* 9. 右上の処理中アイコンを丸いローダーに戻す */
+    [data-testid="stStatusWidget"] > div > div > img { display: none; }
+    [data-testid="stStatusWidget"] svg { display: none; }
+    [data-testid="stStatusWidget"] > div > div {
+        border: 3px solid #FFCC80; border-top-color: transparent;
+        border-radius: 50%; animation: spin 1s linear infinite;
     }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    
+    .bearing-loader {
+        display: inline-block; width: 20px; height: 20px;
+        border: 2px solid #FF9800; border-radius: 50%;
+        border-top: 2px solid transparent;
+        animation: spin 1.5s linear infinite; margin-right: 5px; position: relative;
+    }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -263,6 +273,7 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "confirm_done_id" not in st.session_state: st.session_state.confirm_done_id = None
 if "forwarding_id" not in st.session_state: st.session_state.forwarding_id = None
 if "show_anim" not in st.session_state: st.session_state.show_anim = False
+if "new_task_content" not in st.session_state: st.session_state.new_task_content = ""
 
 if not st.session_state["logged_in"]:
     login()
@@ -297,16 +308,27 @@ else:
 
     # 1. マイタスクボード
     if "マイタスク" in menu:
-        # ★レイアウト: メインエリア(3) : 完了リスト(1)
-        main_area, right_sidebar = st.columns([3, 1], gap="large")
+        # --- ヘッダーエリア（タイトル・同期・履歴スイッチ） ---
+        col_h, col_b, col_t = st.columns([3, 1, 1])
+        col_h.subheader("📊 マイタスクボード")
+        if col_b.button("🔄 同期", use_container_width=True): 
+            get_tasks_from_server()
+            st.rerun()
+        
+        # 履歴表示用トグルスイッチ
+        show_history = col_t.toggle("🗄️ 完了履歴", value=False)
 
+        # --- レイアウト切り替えロジック ---
+        if show_history:
+             # ONの場合: 3(メイン) : 1(履歴)
+            main_area, right_sidebar = st.columns([3, 1], gap="large")
+        else:
+             # OFFの場合: メインのみ
+            main_area = st.container()
+            right_sidebar = None
+
+        # === メインエリア ===
         with main_area:
-            col_h, col_b = st.columns([4,1])
-            col_h.subheader("📊 マイタスクボード")
-            if col_b.button("🔄 同期", use_container_width=True): 
-                get_tasks_from_server()
-                st.rerun()
-            
             my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
             
             # メイン3カラム
@@ -400,34 +422,39 @@ else:
                                     delete_task_local(t_id)
                                     st.rerun()
 
-        # ★右カラム (完了タスクエリア)
-        with right_sidebar:
-            st.markdown("#### ✅ 完了済み")
-            if done_tasks:
-                for t in done_tasks:
-                    with st.container(border=True):
-                        st.markdown(f"**{t.get('content')}**")
-                        if st.button("戻す", key=f"re_{t.get('id')}", use_container_width=True):
-                            update_task_local(t.get('id'), new_status="対応中")
-                            st.rerun()
-            else:
-                st.caption("完了タスクなし")
+        # === 履歴エリア (スイッチONの時だけ表示) ===
+        if show_history and right_sidebar:
+            with right_sidebar:
+                st.markdown("#### ✅ 完了済み履歴")
+                with st.container(border=True):
+                    if done_tasks:
+                        for t in done_tasks:
+                            st.markdown(f"**{t.get('content')}**")
+                            st.caption(f"{t.get('date', '')}")
+                            if st.button("戻す", key=f"re_{t.get('id')}", use_container_width=True):
+                                update_task_local(t.get('id'), new_status="対応中")
+                                st.rerun()
+                            st.divider()
+                    else:
+                        st.caption("完了タスクなし")
 
     # 2. 新規依頼
     elif menu == "📝 新規タスク依頼":
         st.subheader("📤 新規タスク")
-        with st.form("create"):
-            content = st.text_input("タスクのタイトル")
+        with st.container(border=True):
+            content = st.text_input("タスクのタイトル", key="new_task_input")
             target = st.selectbox("依頼先", list(USERS.keys()))
             is_routine = st.checkbox("🟣 ルーティン")
-            if st.form_submit_button("送信 📘💨", use_container_width=True):
+            
+            if st.button("送信 📘💨", use_container_width=True):
                 if content:
                     import datetime
                     new_task = {"id": str(uuid.uuid4()), "content": content, "from_user": current_user, "to_user": target, "status": "ルーティン" if is_routine else "未着手", "logs": "新規作成"}
                     create_task_local(new_task)
                     st.session_state.show_anim = True
                     st.rerun()
-                else: st.error("タイトルを入力してください")
+                else:
+                    st.error("タイトルを入力してください")
 
     # 3. 通知
     elif menu == "🔔 通知センター":
