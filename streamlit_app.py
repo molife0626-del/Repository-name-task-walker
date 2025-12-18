@@ -23,7 +23,7 @@ USERS = {
 ADMIN_USERS = ["上司", "経理"]
 LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/8s565656.json"
 
-st.set_page_config(page_title="Task Walker", page_icon="🍊", layout="wide")
+st.set_page_config(page_title="Task Walker", page_icon="", layout="wide")
 
 # ==========================================
 #  🎨 デザイン (CSS) - オレンジテーマ
@@ -212,7 +212,7 @@ def load_lottieurl(url):
 # --- 認証 ---
 def login():
     # ★ここに動画ファイル名を指定（拡張子まで正確に！）
-    VIDEO_FILENAME = "Video Project3.mp4"
+    VIDEO_FILENAME = "Video Project 3.mp4"
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
