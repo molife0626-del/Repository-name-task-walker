@@ -22,54 +22,114 @@ USERS = {
     "メンバーA": "aaaa"
 }
 ADMIN_USERS = ["上司", "経理"]
-LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/8s565656.json"
 
-st.set_page_config(page_title="Task Walker", page_icon="🍊", layout="wide")
+# ★アイコンを「M」に変更
+st.set_page_config(page_title="MBS Task Walker", page_icon="Ⓜ️", layout="wide")
 
 # ==========================================
-#  🎨 デザイン (CSS)
+#  🎨 デザイン (CSS) - スマホ対応 & アニメーション
 # ==========================================
 st.markdown("""
 <style>
+    /* 1. 全体の余白調整 (スマホで見やすく) */
     .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 1rem !important;
+        padding-top: 1rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 100% !important;
     }
+    
+    /* 2. 背景色 */
     .stApp { background-color: #FFFAF5; }
+
+    /* 3. サイドバー */
     [data-testid="stSidebar"] { background-color: #FFF3E0; border-right: 1px solid #FFCC80; }
+
+    /* 4. テキスト・見出し */
     h1, h2, h3 { color: #E65100 !important; font-family: 'Helvetica Neue', sans-serif; }
     
+    /* 5. ボタン (MBSオレンジ) */
     .stButton > button {
         background-color: white; color: #E65100; border: 2px solid #E65100;
         border-radius: 8px; font-weight: bold; transition: all 0.3s;
+        width: 100%; /* スマホで押しやすく */
     }
     .stButton > button:hover {
         background-color: #E65100; color: white; border-color: #E65100;
     }
 
+    /* 6. カードデザイン */
     [data-testid="stVerticalBlockBorderWrapper"] {
         border-color: #FFE0B2 !important; background-color: white;
         border-radius: 10px; box-shadow: 0 2px 4px rgba(230, 81, 0, 0.1);
     }
-    
-    .login-container { display: flex; align-items: center; justify-content: center; height: 80vh; }
 
-    [data-testid="stStatusWidget"] > div > div > img { display: none; }
-    [data-testid="stStatusWidget"] svg { display: none; }
-    [data-testid="stStatusWidget"] > div > div {
-        border: 3px solid #FFCC80; border-top-color: transparent;
-        border-radius: 50%; animation: spin 1s linear infinite;
+    /* 7. スマホ対応 (レスポンシブ) */
+    @media (max-width: 768px) {
+        /* カラムを縦積みにする */
+        [data-testid="column"] {
+            width: 100% !important;
+            flex: 1 1 auto !important;
+            min-width: 100% !important;
+        }
+        /* 動画のサイズ調整 */
+        video { width: 100% !important; height: auto !important; }
+        /* 文字サイズ調整 */
+        h1 { font-size: 2em !important; }
     }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* 8. バトンパス・アニメーション定義 */
+    @keyframes runRight {
+        0% { left: -10%; transform: rotate(0deg); }
+        20% { transform: rotate(-10deg); }
+        40% { transform: rotate(10deg); }
+        60% { transform: rotate(-10deg); }
+        100% { left: 50%; transform: rotate(0deg); }
+    }
+    @keyframes waitLeft {
+        0% { right: -10%; opacity: 0; }
+        100% { right: 40%; opacity: 1; }
+    }
+    @keyframes pop {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.5); }
+        100% { transform: scale(1); }
+    }
     
-    .bearing-loader {
-        display: inline-block; width: 20px; height: 20px;
-        border: 2px solid #FF9800; border-radius: 50%;
-        border-top: 2px solid transparent;
-        animation: spin 1.5s linear infinite; margin-right: 5px; position: relative;
+    .anim-container {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(255, 255, 255, 0.9); z-index: 9999;
+        display: flex; align-items: center; justify-content: center;
+        overflow: hidden;
+    }
+    .runner {
+        position: absolute; font-size: 5rem; top: 40%;
+        animation: runRight 1.5s linear forwards;
+    }
+    .receiver {
+        position: absolute; font-size: 5rem; top: 40%; right: 40%;
+        opacity: 0; animation: waitLeft 0.5s 1s forwards;
+    }
+    .success-msg {
+        position: absolute; top: 60%; width: 100%; text-align: center;
+        font-size: 2rem; color: #E65100; font-weight: bold;
+        opacity: 0; animation: waitLeft 0.5s 1.8s forwards;
     }
 </style>
 """, unsafe_allow_html=True)
+
+# --- バトンパスアニメーション表示関数 ---
+def show_baton_pass_animation():
+    anim_html = """
+    <div class="anim-container">
+        <div class="runner">📘💨</div>
+        <div class="receiver">📙✨</div>
+        <div class="success-msg">Nice Pass! バトンを繋ぎました</div>
+    </div>
+    """
+    placeholder = st.empty()
+    placeholder.markdown(anim_html, unsafe_allow_html=True)
+    time.sleep(2.5) # アニメーション再生時間
+    placeholder.empty()
 
 # --- 動画表示関数 ---
 def render_video_html(video_path, width="100%"):
@@ -78,7 +138,7 @@ def render_video_html(video_path, width="100%"):
             video_content = f.read()
         video_b64 = base64.b64encode(video_content).decode()
         video_tag = f"""
-            <video width="{width}" autoplay loop muted playsinline style="border-radius: 15px; box-shadow: 0 8px 16px rgba(230, 81, 0, 0.2);">
+            <video width="{width}" autoplay loop muted playsinline style="border-radius: 15px; box-shadow: 0 8px 16px rgba(230, 81, 0, 0.2); max-width: 100%;">
                 <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
             </video>
         """
@@ -156,100 +216,67 @@ def create_task_local(new_task):
     new_task["action"] = "create"
     safe_post(new_task)
 
-def load_lottieurl(url):
-    try:
-        r = requests.get(url)
-        return r.json() if r.status_code == 200 else None
-    except: return None
-
-# --- 認証（日・英モダンデザイン版） ---
+# --- 認証 ---
 def login():
     VIDEO_FILENAME = "Video Project 3.mp4"
 
-    # ★採用フレーズリスト（日本語メイン + 英語サブ）
     CATCHPHRASES = [
-        {
-            "main": "停滞を、前進へ。<br>タスクが歩き出す。",
-            "sub": "Task Walker gives footsteps to your workflow."
-        },
-        {
-            "main": "そのバトンには、<br>熱がある。",
-            "sub": "Pass the passion, not just the task."
-        },
-        {
-            "main": "いい仕事は、<br>「いいパス」から。",
-            "sub": "Great work starts with a great pass."
-        },
-        {
-            "main": "その一歩が、<br>チームのリズムになる。",
-            "sub": "Your step creates the team's rhythm."
-        },
-        {
-            "main": "「任せた」と<br>「任された」の繰り返し。",
-            "sub": "Trust given, trust received. The cycle of teamwork."
-        },
-        {
-            "main": "ページをめくろう。<br>次は仲間の番だ。",
-            "sub": "Turn the page. It's their turn now."
-        }
+        {"main": "停滞を、前進へ。<br>タスクが歩き出す。", "sub": "Task Walker gives footsteps to your workflow."},
+        {"main": "そのバトンには、<br>熱がある。", "sub": "Pass the passion, not just the task."},
+        {"main": "いい仕事は、<br>「いいパス」から。", "sub": "Great work starts with a great pass."},
+        {"main": "その一歩が、<br>チームのリズムになる。", "sub": "Your step creates the team's rhythm."},
+        {"main": "「任せた」と<br>「任された」の繰り返し。", "sub": "Trust given, trust received. The cycle of teamwork."},
+        {"main": "ページをめくろう。<br>次は仲間の番だ。", "sub": "Turn the page. It's their turn now."}
     ]
-    
-    # ランダムに1つ選ぶ
     phrase = random.choice(CATCHPHRASES)
 
-    col_left, col_right = st.columns([1.5, 1], gap="large")
+    # スマホ対応: gapを調整
+    col_left, col_right = st.columns([1.5, 1], gap="medium")
 
     with col_left:
         st.markdown("<br>", unsafe_allow_html=True)
         render_video_html(VIDEO_FILENAME)
-        
-        # 選ばれたフレーズを表示
         st.markdown(f"""
         <div style="margin-top: 20px;">
-            <h1 style="color:#E65100; font-size: 2.8em; margin-bottom: 0; line-height: 1.2;">
-                {phrase['main']}
-            </h1>
-            <p style="color:#FB8C00; font-family: 'Helvetica Neue', sans-serif; font-weight: 500; font-size: 1.1em; margin-top: 10px; letter-spacing: 0.5px;">
-                {phrase['sub']}
-            </p>
+            <h1 style="color:#E65100; font-size: 2.5em; margin-bottom: 0; line-height: 1.2;">{phrase['main']}</h1>
+            <p style="color:#FB8C00; font-family: 'Helvetica Neue', sans-serif; font-weight: 500; font-size: 1.0em; margin-top: 10px; letter-spacing: 0.5px;">{phrase['sub']}</p>
         </div>
         """, unsafe_allow_html=True)
 
     with col_right:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        
+        st.markdown("<br>", unsafe_allow_html=True)
         with st.container(border=True):
-            st.markdown("#### 🔐 メンバーログイン")
+            st.markdown("#### 🔐 MBS メンバーログイン")
             with st.form("login"):
                 uid = st.text_input("ユーザーID")
                 pwd = st.text_input("パスワード", type="password")
-                
                 submit = st.form_submit_button("バトンを受け取る 👟", use_container_width=True)
-                
                 if submit:
                     if uid in USERS and USERS[uid] == pwd:
                         st.session_state["logged_in"] = True
                         st.session_state["user_id"] = uid
                         get_tasks_from_server()
                         st.rerun()
-                    else:
-                        st.error("IDまたはパスワードが違います")
+                    else: st.error("認証失敗")
 
 # ==========================================
 #  メイン処理
 # ==========================================
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
-
-# 状態管理変数
 if "confirm_done_id" not in st.session_state: st.session_state.confirm_done_id = None
 if "forwarding_id" not in st.session_state: st.session_state.forwarding_id = None
+if "show_anim" not in st.session_state: st.session_state.show_anim = False
 
 if not st.session_state["logged_in"]:
     login()
 else:
+    # アニメーション再生処理
+    if st.session_state.show_anim:
+        show_baton_pass_animation()
+        st.session_state.show_anim = False
+        st.rerun()
+
     current_user = st.session_state["user_id"]
-    lottie_book = load_lottieurl(LOTTIE_WALKING_BOOK)
-    
     all_tasks = get_unique_tasks()
     
     my_active_tasks = [t for t in all_tasks if t.get('to_user') == current_user and t.get('status') != '完了']
@@ -259,7 +286,7 @@ else:
     if len(my_active_tasks) > 0: alert_msg += f" 🔴{len(my_active_tasks)}"
     if len(my_done_reports) > 0: alert_msg += f" ✅{len(my_done_reports)}"
 
-    st.sidebar.title(f"👤 {current_user}")
+    st.sidebar.title(f"Ⓜ️ {current_user}")
     menu = st.sidebar.radio("メニュー", [f"📊 マイタスク{alert_msg}", "📝 新規タスク依頼", "🔔 通知センター", "📈 チーム分析"])
     
     if current_user in ADMIN_USERS:
@@ -271,41 +298,42 @@ else:
         st.session_state["logged_in"] = False
         st.rerun()
 
-    if 'is_walking' not in st.session_state: st.session_state.is_walking = False
-    if st.session_state.is_walking:
-        st.info(f"📘 タスクが「{st.session_state.walking_target}」へバトンを繋いでいます！")
-        if lottie_book: st_lottie(lottie_book, speed=1.5, loop=True, height=200)
-        time.sleep(0.8)
-        st.session_state.is_walking = False
-        st.rerun()
-
     # 1. マイタスクボード
     if "マイタスク" in menu:
         col_h, col_b = st.columns([4,1])
-        col_h.subheader("マイタスクボード")
+        col_h.subheader("📊 マイタスクボード")
         if col_b.button("🔄 同期"): 
             get_tasks_from_server()
             st.rerun()
         
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
-        col1, col2, col3, col4 = st.columns(4)
+        # ★3カラムに変更（完了を隠す）
+        col1, col2, col3 = st.columns(3)
         with col1: st.error("🛑 未着手")
         with col2:
             st.markdown("""
             <div style="background-color:#FFF3E0; color:#E65100; padding:10px; border-radius:5px; text-align:center; border:1px solid #FFCC80;">
                 <div class="bearing-loader"></div> <b>対応中</b>
             </div>""", unsafe_allow_html=True)
-        with col3: st.success("✅ 完了")
-        with col4: st.markdown("<div style='background-color:#E65100;color:white;padding:10px;border-radius:5px;text-align:center;'>🟣 ルーティン</div>", unsafe_allow_html=True)
-        cols = {"未着手": col1, "対応中": col2, "完了": col3, "ルーティン": col4}
+        with col3: st.markdown("<div style='background-color:#E65100;color:white;padding:10px;border-radius:5px;text-align:center;'>🟣 ルーティン</div>", unsafe_allow_html=True)
+        
+        cols = {"未着手": col1, "対応中": col2, "ルーティン": col3}
+        
+        # 完了タスク格納用リスト
+        done_tasks = []
 
         for task in my_tasks:
             status = task.get('status', '未着手')
-            if status not in cols: status = '未着手'
             t_id = task.get('id', '')
             content = task.get('content', '（タイトルなし）')
             logs = task.get('logs', '')
+
+            if status == "完了":
+                done_tasks.append(task)
+                continue
+
+            if status not in cols: status = '未着手'
             
             with cols[status]:
                 with st.container(border=True):
@@ -316,16 +344,16 @@ else:
                         st.caption(f"🕒 {last_log}")
                     
                     if st.session_state.confirm_done_id == t_id:
-                        st.info("このタスクをどうしますか？")
+                        st.info("どうしますか？")
                         cc1, cc2 = st.columns(2)
                         with cc1:
-                            if st.button("このまま完結 ✅", key=f"self_fin_{t_id}", use_container_width=True):
+                            if st.button("完結 ✅", key=f"fin_{t_id}", use_container_width=True):
                                 update_task_local(t_id, new_status="完了")
                                 st.session_state.confirm_done_id = None
                                 st.balloons()
                                 st.rerun()
                         with cc2:
-                            if st.button("バトンを渡す 🏃", key=f"to_next_{t_id}", use_container_width=True):
+                            if st.button("渡す 🏃", key=f"next_{t_id}", use_container_width=True):
                                 st.session_state.confirm_done_id = None
                                 st.session_state.forwarding_id = t_id
                                 st.rerun()
@@ -334,15 +362,14 @@ else:
                              st.rerun()
 
                     elif st.session_state.forwarding_id == t_id:
-                        st.markdown("##### 🏃 次の担当者へバトンパス")
+                        st.markdown("##### 🏃 バトンパス")
                         with st.form(key=f"fwd_form_{t_id}"):
-                            n_user = st.selectbox("誰に渡しますか？", list(USERS.keys()))
-                            n_cont = st.text_input("タスク内容は？", value=content)
+                            n_user = st.selectbox("誰に？", list(USERS.keys()))
+                            n_cont = st.text_input("内容は？", value=content)
                             if st.form_submit_button("バトンを渡す 🚀"):
                                 forward_task_local(t_id, n_cont, n_user, current_user)
                                 st.session_state.forwarding_id = None
-                                st.session_state.is_walking = True
-                                st.session_state.walking_target = n_user
+                                st.session_state.show_anim = True # ★アニメ再生フラグON
                                 st.rerun()
                         if st.button("戻る", key=f"back_fwd_{t_id}"):
                             st.session_state.forwarding_id = None
@@ -350,35 +377,27 @@ else:
 
                     else:
                         if status == "未着手":
-                            b_col1, b_col2 = st.columns(2)
-                            with b_col1:
-                                if st.button("着手 🛠", key=f"start_{t_id}", use_container_width=True):
+                            b1, b2 = st.columns(2)
+                            with b1:
+                                if st.button("着手 🛠", key=f"st_{t_id}", use_container_width=True):
                                     update_task_local(t_id, new_status="対応中")
                                     st.rerun()
-                            with b_col2:
-                                if st.button("即完了 ✅", key=f"quick_done_{t_id}", use_container_width=True):
+                            with b2:
+                                if st.button("即完 ✅", key=f"q_{t_id}", use_container_width=True):
                                     st.session_state.confirm_done_id = t_id
                                     st.rerun()
-
                         elif status == "対応中":
-                            if st.button("完了 ✅", key=f"try_done2_{t_id}", use_container_width=True):
+                            if st.button("完了 ✅", key=f"dn_{t_id}", use_container_width=True):
                                 st.session_state.confirm_done_id = t_id
                                 st.rerun()
-
                         elif status == "ルーティン":
-                             if st.button("完了 ✅", key=f"try_done3_{t_id}", use_container_width=True):
+                             if st.button("完了 ✅", key=f"rdn_{t_id}", use_container_width=True):
                                 update_task_local(t_id, new_status="完了")
                                 st.balloons()
                                 st.rerun()
-
-                        elif status == "完了":
-                             if st.button("↩ 戻す", key=f"back_{t_id}", use_container_width=True):
-                                update_task_local(t_id, new_status="対応中")
-                                st.rerun()
                         
                         if status != "完了":
-                            with st.expander("⚙️ 詳細・編集"):
-                                st.markdown("**📝 タイトル修正・削除**")
+                            with st.expander("⚙️ 編集・削除"):
                                 e_cont = st.text_input("修正", value=content, key=f"ec_{t_id}")
                                 if st.button("保存", key=f"sv_{t_id}"):
                                     update_task_local(t_id, new_content=e_cont)
@@ -386,6 +405,23 @@ else:
                                 if st.button("🗑 削除", key=f"del_{t_id}"):
                                     delete_task_local(t_id)
                                     st.rerun()
+
+        # ★完了タスクは下部のExpanderへ
+        st.markdown("<br>", unsafe_allow_html=True)
+        with st.expander(f"✅ 完了済みタスク ({len(done_tasks)})", expanded=False):
+            if done_tasks:
+                for t in done_tasks:
+                    with st.container(border=True):
+                        col_a, col_b = st.columns([4, 1])
+                        with col_a:
+                            st.markdown(f"~~{t.get('content')}~~")
+                            st.caption(f"Log: {t.get('logs').splitlines()[-1] if t.get('logs') else ''}")
+                        with col_b:
+                            if st.button("戻す", key=f"ret_{t.get('id')}"):
+                                update_task_local(t.get('id'), new_status="対応中")
+                                st.rerun()
+            else:
+                st.info("完了タスクはありません")
 
     # 2. 新規依頼
     elif menu == "📝 新規タスク依頼":
@@ -397,15 +433,13 @@ else:
             if st.form_submit_button("送信 📘💨", use_container_width=True):
                 if content:
                     import datetime
-                    now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
                     new_task = {"id": str(uuid.uuid4()), "content": content, "from_user": current_user, "to_user": target, "status": "ルーティン" if is_routine else "未着手", "logs": "新規作成"}
                     create_task_local(new_task)
-                    st.session_state.is_walking = True
-                    st.session_state.walking_target = target
+                    st.session_state.show_anim = True # ★ここでもアニメ再生
                     st.rerun()
                 else: st.error("タイトルを入力してください")
 
-    # 3. 通知
+    # 3. 通知 (前回と同じ)
     elif menu == "🔔 通知センター":
         st.subheader("🔔 通知センター")
         if st.button("最新取得"): 
@@ -416,7 +450,6 @@ else:
         tasks_done = [t for t in all_tasks if t.get('from_user') == current_user and t.get('status') == '完了' and t.get('to_user') != current_user]
 
         tab1, tab2 = st.tabs([f"📩 あなたへの依頼 ({len(tasks_for_me)})", f"✅ 完了報告 ({len(tasks_done)})"])
-        
         with tab1:
             if tasks_for_me:
                 for task in reversed(tasks_for_me):
@@ -424,7 +457,6 @@ else:
                         st.markdown(f"**{task.get('from_user')}** ➡ あなた")
                         st.markdown(f"##### 「{task.get('content')}」")
                         st.caption(f"状態: {task.get('status')}")
-                        if 'logs' in task: st.caption(f"履歴: {task['logs']}")
             else: st.info("依頼はありません")
 
         with tab2:
@@ -433,7 +465,6 @@ else:
                     with st.container(border=True):
                         st.success(f"✅ {task.get('to_user')} さんが完了しました！")
                         st.markdown(f"##### 「{task.get('content')}」")
-                        if 'logs' in task: st.caption(f"履歴: {task['logs']}")
             else: st.info("完了報告はありません")
 
     # 4. 分析
@@ -458,12 +489,3 @@ else:
                     c = df['status'].value_counts().reset_index()
                     c.columns=['状態','件数']
                     st.plotly_chart(px.pie(c, values='件数', names='状態'), use_container_width=True)
-                st.divider()
-                st.markdown("##### 🔍 詳細リスト")
-                selected_user = st.selectbox("担当者", ["全員"] + list(USERS.keys()))
-                view_df = df[df['to_user'] == selected_user] if selected_user != "全員" else df
-                if not view_df.empty:
-                    cols = ['content', 'status', 'from_user', 'to_user']
-                    if 'logs' in view_df.columns: cols.append('logs')
-                    view_df = view_df[cols].rename(columns={'content': 'タイトル'})
-                    st.dataframe(view_df, use_container_width=True, hide_index=True)
