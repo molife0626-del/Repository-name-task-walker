@@ -164,7 +164,7 @@ def load_lottieurl(url):
 
 # --- 認証（日・英モダンデザイン版） ---
 def login():
-    VIDEO_FILENAME = "TaskWalkerアプリの動画生成.mp4"
+    VIDEO_FILENAME = "Video Project 3.mp4"
 
     # ★採用フレーズリスト（日本語メイン + 英語サブ）
     CATCHPHRASES = [
