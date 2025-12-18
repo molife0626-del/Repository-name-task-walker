@@ -24,7 +24,7 @@ LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/
 
 st.set_page_config(page_title="Task Walker", page_icon="📘", layout="wide")
 
-# --- CSS: ベアリング統一 ---
+# --- CSS ---
 st.markdown("""
 <style>
 [data-testid="stStatusWidget"] > div > div > img { display: none; }
@@ -50,6 +50,9 @@ st.markdown("""
 }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .task-card { padding: 10px; border-radius: 10px; background-color: #ffffff; border: 1px solid #ddd; margin-bottom: 10px; }
+
+/* ボタンのスタイル調整 */
+div[data-testid="column"] { gap: 0.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -166,10 +169,7 @@ else:
     
     all_tasks = get_unique_tasks()
     
-    # バッジ計算（自分宛ての未完了）
     my_active_tasks = [t for t in all_tasks if t.get('to_user') == current_user and t.get('status') != '完了']
-    
-    # ★修正：完了通知（自分が依頼して、完了になったもの、かつ相手がやったもの）
     my_done_reports = [t for t in all_tasks if t.get('from_user') == current_user and t.get('status') == '完了' and t.get('to_user') != current_user]
     
     alert_msg = ""
@@ -206,6 +206,7 @@ else:
         
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
+        # カラム定義（ここを変えました！）
         col1, col2, col3, col4 = st.columns(4)
         with col1: st.error("🛑 未着手")
         with col2:
@@ -233,10 +234,22 @@ else:
                         last_log = logs.split('\n')[-1]
                         st.caption(f"🕒 {last_log}")
 
+                    # --- 【ここが進化！】ワンクリック移動 ---
                     if status == "未着手":
-                        if st.button("対応開始 ➡", key=f"go_{t_id}", use_container_width=True):
-                            update_task_local(t_id, new_status="対応中")
-                            st.rerun()
+                        # ボタンを2つ並べる
+                        b_col1, b_col2 = st.columns(2)
+                        with b_col1:
+                            # 1. これを押すと「対応中」へ
+                            if st.button("着手 🛠", key=f"start_{t_id}", use_container_width=True):
+                                update_task_local(t_id, new_status="対応中")
+                                st.rerun()
+                        with b_col2:
+                            # 2. これを押すと、いきなり「完了」へ！（ショートカット）
+                            if st.button("即完了 ✅", key=f"quick_done_{t_id}", use_container_width=True):
+                                update_task_local(t_id, new_status="完了")
+                                st.balloons()
+                                st.rerun()
+
                     elif status == "対応中":
                         if st.button("完了する ✅", key=f"done_{t_id}", use_container_width=True):
                             update_task_local(t_id, new_status="完了")
@@ -292,16 +305,14 @@ else:
                     st.rerun()
                 else: st.error("タイトルを入力してください")
 
-    # 3. 通知 (機能強化)
+    # 3. 通知
     elif menu == "🔔 通知センター":
         st.subheader("🔔 通知センター")
         if st.button("最新取得"): 
             get_tasks_from_server()
             st.rerun()
         
-        # 通知1: 自分への依頼
         tasks_for_me = [t for t in all_tasks if t.get('to_user') == current_user]
-        # 通知2: 完了報告（自分が依頼して、相手が完了させたもの）
         tasks_done = [t for t in all_tasks if t.get('from_user') == current_user and t.get('status') == '完了' and t.get('to_user') != current_user]
 
         tab1, tab2 = st.tabs([f"📩 あなたへの依頼 ({len(tasks_for_me)})", f"✅ 完了報告 ({len(tasks_done)})"])
