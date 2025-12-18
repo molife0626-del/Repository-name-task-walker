@@ -5,6 +5,7 @@ import uuid
 import pandas as pd
 from streamlit_lottie import st_lottie
 import plotly.express as px
+import base64  # ★動画埋め込み用に追加
 
 # ==========================================
 #  ⚙️ 設定エリア
@@ -110,6 +111,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- 動画表示用の関数 ---
+def render_video_html(video_path, width="100%"):
+    """ローカルの動画ファイルをHTMLで埋め込んで自動再生する"""
+    try:
+        with open(video_path, "rb") as f:
+            video_content = f.read()
+        video_b64 = base64.b64encode(video_content).decode()
+        # autoplay: 自動再生, loop: 繰り返し, muted: 音消し(必須), playsinline: モバイル対応
+        video_tag = f"""
+            <video width="{width}" autoplay loop muted playsinline style="border-radius: 15px; box-shadow: 0 4px 8px rgba(230, 81, 0, 0.2); margin-bottom: 20px;">
+                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        """
+        st.markdown(video_tag, unsafe_allow_html=True)
+    except FileNotFoundError:
+        st.warning(f"⚠️ 動画ファイル '{video_path}' が見つかりません。フォルダに配置してください。")
+
 # --- 通信関数 ---
 def get_tasks_from_server():
     try:
@@ -192,20 +211,44 @@ def load_lottieurl(url):
 
 # --- 認証 ---
 def login():
-    st.markdown("<h1 style='text-align: center; color:#E65100;'>🍊 Task Walker</h1>", unsafe_allow_html=True)
-    col1, col2, col3 = st.columns([1,2,1])
+    # ★ここに動画ファイル名を指定（拡張子まで正確に！）
+    VIDEO_FILENAME = "Video Project3.mp4"
+
+    col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # 🎬 動画の表示（自動再生・ループ）
+        render_video_html(VIDEO_FILENAME)
+        
+        # タイトルとキャッチフレーズ
+        st.markdown("""
+        <div style="text-align: center;">
+            <h1 style="color:#E65100; margin-bottom:0;">Task Walker</h1>
+            <p style="color:#FF9800; font-weight:bold; font-size:1.2em;">
+                タスクを繋ぐ。チームが動く。<br>
+                <span style="font-size:0.8em; color:#888;">Pass the baton, finish the job.</span>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("---")
+
         with st.container(border=True):
             with st.form("login"):
-                uid = st.text_input("ユーザーID")
-                pwd = st.text_input("パスワード", type="password")
-                if st.form_submit_button("ログイン", use_container_width=True):
+                uid = st.text_input("👤 ユーザーID")
+                pwd = st.text_input("🔑 パスワード", type="password")
+                
+                submit = st.form_submit_button("ログインして歩き出す 👟", use_container_width=True)
+                
+                if submit:
                     if uid in USERS and USERS[uid] == pwd:
                         st.session_state["logged_in"] = True
                         st.session_state["user_id"] = uid
                         get_tasks_from_server()
                         st.rerun()
-                    else: st.error("認証失敗")
+                    else:
+                        st.error("IDまたはパスワードが違います")
 
 # ==========================================
 #  メイン処理
