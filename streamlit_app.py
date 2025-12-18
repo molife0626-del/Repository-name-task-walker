@@ -5,7 +5,8 @@ import uuid
 import pandas as pd
 from streamlit_lottie import st_lottie
 import plotly.express as px
-import base64  # ★動画埋め込み用に追加
+import base64
+import random
 
 # ==========================================
 #  ⚙️ 設定エリア
@@ -23,111 +24,67 @@ USERS = {
 ADMIN_USERS = ["上司", "経理"]
 LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/8s565656.json"
 
-st.set_page_config(page_title="Task Walker", page_icon="", layout="wide")
+st.set_page_config(page_title="Task Walker", page_icon="🍊", layout="wide")
 
 # ==========================================
-#  🎨 デザイン (CSS) - オレンジテーマ
+#  🎨 デザイン (CSS)
 # ==========================================
 st.markdown("""
 <style>
-    /* 全体のフォントと背景 */
-    .stApp {
-        background-color: #FFFAF5; /* ごく薄いオレンジ白 */
+    .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 1rem !important;
     }
-
-    /* サイドバーの背景 */
-    [data-testid="stSidebar"] {
-        background-color: #FFF3E0; /* 薄いオレンジ */
-        border-right: 1px solid #FFCC80;
-    }
-
-    /* ヘッダーの装飾 */
-    h1, h2, h3 {
-        color: #E65100 !important; /* 濃いオレンジ */
-        font-family: 'Helvetica Neue', sans-serif;
-    }
+    .stApp { background-color: #FFFAF5; }
+    [data-testid="stSidebar"] { background-color: #FFF3E0; border-right: 1px solid #FFCC80; }
+    h1, h2, h3 { color: #E65100 !important; font-family: 'Helvetica Neue', sans-serif; }
     
-    /* ボタンのスタイル (オレンジ統一) */
     .stButton > button {
-        background-color: white;
-        color: #E65100;
-        border: 2px solid #E65100;
-        border-radius: 8px;
-        font-weight: bold;
-        transition: all 0.3s;
+        background-color: white; color: #E65100; border: 2px solid #E65100;
+        border-radius: 8px; font-weight: bold; transition: all 0.3s;
     }
     .stButton > button:hover {
-        background-color: #E65100;
-        color: white;
-        border-color: #E65100;
+        background-color: #E65100; color: white; border-color: #E65100;
     }
 
-    /* タブのスタイル */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: white;
-        border-radius: 5px;
-        border: 1px solid #FFCC80;
-        color: #E65100;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #E65100 !important;
-        color: white !important;
-    }
-
-    /* カードデザイン (st.container) の装飾 */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        border-color: #FFE0B2 !important;
-        background-color: white;
-        border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(230, 81, 0, 0.1); /* オレンジの影 */
+        border-color: #FFE0B2 !important; background-color: white;
+        border-radius: 10px; box-shadow: 0 2px 4px rgba(230, 81, 0, 0.1);
     }
+    
+    .login-container { display: flex; align-items: center; justify-content: center; height: 80vh; }
 
-    /* 右上の処理中アニメーション */
     [data-testid="stStatusWidget"] > div > div > img { display: none; }
     [data-testid="stStatusWidget"] svg { display: none; }
     [data-testid="stStatusWidget"] > div > div {
-        border: 3px solid #FFCC80;
-        border-top-color: transparent;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
+        border: 3px solid #FFCC80; border-top-color: transparent;
+        border-radius: 50%; animation: spin 1s linear infinite;
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-    /* 対応中のグルグル */
+    
     .bearing-loader {
         display: inline-block; width: 20px; height: 20px;
-        border: 2px solid #FF9800;
-        border-radius: 50%;
+        border: 2px solid #FF9800; border-radius: 50%;
         border-top: 2px solid transparent;
-        animation: spin 1.5s linear infinite;
-        margin-right: 5px; position: relative;
+        animation: spin 1.5s linear infinite; margin-right: 5px; position: relative;
     }
-
-    /* カラム間の隙間調整 */
-    div[data-testid="column"] { gap: 0.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 動画表示用の関数 ---
+# --- 動画表示関数 ---
 def render_video_html(video_path, width="100%"):
-    """ローカルの動画ファイルをHTMLで埋め込んで自動再生する"""
     try:
         with open(video_path, "rb") as f:
             video_content = f.read()
         video_b64 = base64.b64encode(video_content).decode()
-        # autoplay: 自動再生, loop: 繰り返し, muted: 音消し(必須), playsinline: モバイル対応
         video_tag = f"""
-            <video width="{width}" autoplay loop muted playsinline style="border-radius: 15px; box-shadow: 0 4px 8px rgba(230, 81, 0, 0.2); margin-bottom: 20px;">
+            <video width="{width}" autoplay loop muted playsinline style="border-radius: 15px; box-shadow: 0 8px 16px rgba(230, 81, 0, 0.2);">
                 <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
-                Your browser does not support the video tag.
             </video>
         """
         st.markdown(video_tag, unsafe_allow_html=True)
     except FileNotFoundError:
-        st.warning(f"⚠️ 動画ファイル '{video_path}' が見つかりません。フォルダに配置してください。")
+        st.warning(f"⚠️ 動画ファイル '{video_path}' が見つかりません。")
 
 # --- 通信関数 ---
 def get_tasks_from_server():
@@ -181,14 +138,10 @@ def delete_task_local(task_id):
     safe_post({"action": "delete", "id": task_id})
 
 def forward_task_local(current_id, new_content, new_target, my_name):
-    # 完了にする
     update_task_local(current_id, new_status="完了")
-    
     import datetime
     new_id = str(uuid.uuid4())
     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
-    
-    # 送信
     data = {
         "action": "forward", "id": current_id, "new_id": new_id,
         "new_content": new_content, "new_target": new_target,
@@ -209,37 +162,69 @@ def load_lottieurl(url):
         return r.json() if r.status_code == 200 else None
     except: return None
 
-# --- 認証 ---
+# --- 認証（日・英モダンデザイン版） ---
 def login():
-    # ★ここに動画ファイル名を指定（拡張子まで正確に！）
-    VIDEO_FILENAME = "Video Project 3.mp4"
+    VIDEO_FILENAME = "TaskWalkerアプリの動画生成.mp4"
 
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
+    # ★採用フレーズリスト（日本語メイン + 英語サブ）
+    CATCHPHRASES = [
+        {
+            "main": "停滞を、前進へ。<br>タスクが歩き出す。",
+            "sub": "Task Walker gives footsteps to your workflow."
+        },
+        {
+            "main": "そのバトンには、<br>熱がある。",
+            "sub": "Pass the passion, not just the task."
+        },
+        {
+            "main": "いい仕事は、<br>「いいパス」から。",
+            "sub": "Great work starts with a great pass."
+        },
+        {
+            "main": "その一歩が、<br>チームのリズムになる。",
+            "sub": "Your step creates the team's rhythm."
+        },
+        {
+            "main": "「任せた」と<br>「任された」の繰り返し。",
+            "sub": "Trust given, trust received. The cycle of teamwork."
+        },
+        {
+            "main": "ページをめくろう。<br>次は仲間の番だ。",
+            "sub": "Turn the page. It's their turn now."
+        }
+    ]
+    
+    # ランダムに1つ選ぶ
+    phrase = random.choice(CATCHPHRASES)
+
+    col_left, col_right = st.columns([1.5, 1], gap="large")
+
+    with col_left:
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        # 🎬 動画の表示（自動再生・ループ）
         render_video_html(VIDEO_FILENAME)
         
-        # タイトルとキャッチフレーズ
-        st.markdown("""
-        <div style="text-align: center;">
-            <h1 style="color:#E65100; margin-bottom:0;">Task Walker</h1>
-            <p style="color:#FF9800; font-weight:bold; font-size:1.2em;">
-                タスクを繋ぐ。チームが動く。<br>
-                <span style="font-size:0.8em; color:#888;">Pass the baton, finish the job.</span>
+        # 選ばれたフレーズを表示
+        st.markdown(f"""
+        <div style="margin-top: 20px;">
+            <h1 style="color:#E65100; font-size: 2.8em; margin-bottom: 0; line-height: 1.2;">
+                {phrase['main']}
+            </h1>
+            <p style="color:#FB8C00; font-family: 'Helvetica Neue', sans-serif; font-weight: 500; font-size: 1.1em; margin-top: 10px; letter-spacing: 0.5px;">
+                {phrase['sub']}
             </p>
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("---")
-
+    with col_right:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        
         with st.container(border=True):
+            st.markdown("#### 🔐 メンバーログイン")
             with st.form("login"):
-                uid = st.text_input("👤 ユーザーID")
-                pwd = st.text_input("🔑 パスワード", type="password")
+                uid = st.text_input("ユーザーID")
+                pwd = st.text_input("パスワード", type="password")
                 
-                submit = st.form_submit_button("ログインして歩き出す 👟", use_container_width=True)
+                submit = st.form_submit_button("バトンを受け取る 👟", use_container_width=True)
                 
                 if submit:
                     if uid in USERS and USERS[uid] == pwd:
@@ -255,7 +240,7 @@ def login():
 # ==========================================
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
-# 状態管理変数の初期化
+# 状態管理変数
 if "confirm_done_id" not in st.session_state: st.session_state.confirm_done_id = None
 if "forwarding_id" not in st.session_state: st.session_state.forwarding_id = None
 
@@ -330,9 +315,6 @@ else:
                         last_log = logs.split('\n')[-1]
                         st.caption(f"🕒 {last_log}")
                     
-                    # === アクションエリア ===
-                    
-                    # 1. 完了・バトン確認モード
                     if st.session_state.confirm_done_id == t_id:
                         st.info("このタスクをどうしますか？")
                         cc1, cc2 = st.columns(2)
@@ -351,7 +333,6 @@ else:
                              st.session_state.confirm_done_id = None
                              st.rerun()
 
-                    # 2. バトンパス入力モード
                     elif st.session_state.forwarding_id == t_id:
                         st.markdown("##### 🏃 次の担当者へバトンパス")
                         with st.form(key=f"fwd_form_{t_id}"):
@@ -367,7 +348,6 @@ else:
                             st.session_state.forwarding_id = None
                             st.rerun()
 
-                    # 3. 通常モード
                     else:
                         if status == "未着手":
                             b_col1, b_col2 = st.columns(2)
