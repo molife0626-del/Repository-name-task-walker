@@ -24,7 +24,7 @@ LOTTIE_WALKING_BOOK = "https://lottie.host/c6840845-b867-4323-9123-523760e2587c/
 
 st.set_page_config(page_title="Task Walker", page_icon="📘", layout="wide")
 
-# --- CSS ---
+# --- CSS: ベアリング統一 ---
 st.markdown("""
 <style>
 [data-testid="stStatusWidget"] > div > div > img { display: none; }
@@ -50,9 +50,6 @@ st.markdown("""
 }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 .task-card { padding: 10px; border-radius: 10px; background-color: #ffffff; border: 1px solid #ddd; margin-bottom: 10px; }
-
-/* ボタンのスタイル調整 */
-div[data-testid="column"] { gap: 0.5rem; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -108,16 +105,19 @@ def delete_task_local(task_id):
     safe_post({"action": "delete", "id": task_id})
 
 def forward_task_local(current_id, new_content, new_target, my_name):
+    # 1. 完了にする
     update_task_local(current_id, new_status="完了")
     
+    # 2. 新規タスク作成
     import datetime
     new_id = str(uuid.uuid4())
     now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
     
+    # ログにも「バトンパス」と記録
     new_task = {
         "id": new_id, "content": new_content, "from_user": my_name, 
         "to_user": new_target, "status": "未着手",
-        "date": now_str, "logs": "新規作成(転送)"
+        "date": now_str, "logs": "🏃バトンパスにより発生"
     }
     
     data = {
@@ -161,6 +161,10 @@ def login():
 # ==========================================
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 
+# 状態管理変数の初期化
+if "confirm_done_id" not in st.session_state: st.session_state.confirm_done_id = None
+if "forwarding_id" not in st.session_state: st.session_state.forwarding_id = None
+
 if not st.session_state["logged_in"]:
     login()
 else:
@@ -190,7 +194,7 @@ else:
 
     if 'is_walking' not in st.session_state: st.session_state.is_walking = False
     if st.session_state.is_walking:
-        st.info(f"📘 タスクが「{st.session_state.walking_target}」へ向かっています！")
+        st.info(f"📘 タスクが「{st.session_state.walking_target}」へバトンを繋いでいます！")
         if lottie_book: st_lottie(lottie_book, speed=1.5, loop=True, height=200)
         time.sleep(0.8)
         st.session_state.is_walking = False
@@ -206,7 +210,6 @@ else:
         
         my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
         
-        # カラム定義（ここを変えました！）
         col1, col2, col3, col4 = st.columns(4)
         with col1: st.error("🛑 未着手")
         with col2:
@@ -229,63 +232,88 @@ else:
                 with st.container(border=True):
                     st.markdown(f"#### 📘 {content}")
                     st.caption(f"依頼: {task.get('from_user')}")
-                    
                     if logs:
                         last_log = logs.split('\n')[-1]
                         st.caption(f"🕒 {last_log}")
-
-                    # --- 【ここが進化！】ワンクリック移動 ---
-                    if status == "未着手":
-                        # ボタンを2つ並べる
-                        b_col1, b_col2 = st.columns(2)
-                        with b_col1:
-                            # 1. これを押すと「対応中」へ
-                            if st.button("着手 🛠", key=f"start_{t_id}", use_container_width=True):
-                                update_task_local(t_id, new_status="対応中")
+                    
+                    # === アクションエリア ===
+                    
+                    # 1. 完了・バトン確認モード
+                    if st.session_state.confirm_done_id == t_id:
+                        st.info("このタスクをどうしますか？")
+                        cc1, cc2 = st.columns(2)
+                        with cc1:
+                            if st.button("このまま完結 ✅", key=f"self_fin_{t_id}", use_container_width=True):
+                                update_task_local(t_id, new_status="完了")
+                                st.session_state.confirm_done_id = None
+                                st.balloons()
                                 st.rerun()
-                        with b_col2:
-                            # 2. これを押すと、いきなり「完了」へ！（ショートカット）
-                            if st.button("即完了 ✅", key=f"quick_done_{t_id}", use_container_width=True):
+                        with cc2:
+                            # ★ここを変更：「転送」→「バトン」
+                            if st.button("バトンを渡す 🏃", key=f"to_next_{t_id}", use_container_width=True):
+                                st.session_state.confirm_done_id = None
+                                st.session_state.forwarding_id = t_id
+                                st.rerun()
+                        if st.button("キャンセル", key=f"cncl_{t_id}", use_container_width=True):
+                             st.session_state.confirm_done_id = None
+                             st.rerun()
+
+                    # 2. バトンパス入力モード
+                    elif st.session_state.forwarding_id == t_id:
+                        st.markdown("##### 🏃 次の担当者へバトンパス")
+                        with st.form(key=f"fwd_form_{t_id}"):
+                            n_user = st.selectbox("誰に渡しますか？", list(USERS.keys()))
+                            n_cont = st.text_input("タスク内容は？", value=content)
+                            # ★ボタン変更
+                            if st.form_submit_button("バトンを渡す 🚀"):
+                                forward_task_local(t_id, n_cont, n_user, current_user)
+                                st.session_state.forwarding_id = None
+                                st.session_state.is_walking = True
+                                st.session_state.walking_target = n_user
+                                st.rerun()
+                        if st.button("戻る", key=f"back_fwd_{t_id}"):
+                            st.session_state.forwarding_id = None
+                            st.rerun()
+
+                    # 3. 通常モード
+                    else:
+                        if status == "未着手":
+                            b_col1, b_col2 = st.columns(2)
+                            with b_col1:
+                                if st.button("着手 🛠", key=f"start_{t_id}", use_container_width=True):
+                                    update_task_local(t_id, new_status="対応中")
+                                    st.rerun()
+                            with b_col2:
+                                if st.button("即完了 ✅", key=f"quick_done_{t_id}", use_container_width=True):
+                                    st.session_state.confirm_done_id = t_id
+                                    st.rerun()
+
+                        elif status == "対応中":
+                            if st.button("完了 ✅", key=f"try_done2_{t_id}", use_container_width=True):
+                                st.session_state.confirm_done_id = t_id
+                                st.rerun()
+
+                        elif status == "ルーティン":
+                             if st.button("完了 ✅", key=f"try_done3_{t_id}", use_container_width=True):
                                 update_task_local(t_id, new_status="完了")
                                 st.balloons()
                                 st.rerun()
 
-                    elif status == "対応中":
-                        if st.button("完了する ✅", key=f"done_{t_id}", use_container_width=True):
-                            update_task_local(t_id, new_status="完了")
-                            st.balloons()
-                            st.rerun()
-                    elif status == "ルーティン":
-                         if st.button("完了 ✅", key=f"r_done_{t_id}", use_container_width=True):
-                            update_task_local(t_id, new_status="完了")
-                            st.balloons()
-                            st.rerun()
-                    elif status == "完了":
-                         if st.button("↩ 戻す", key=f"back_{t_id}", use_container_width=True):
-                            update_task_local(t_id, new_status="対応中")
-                            st.rerun()
-
-                    with st.expander("⚙️ 転送・編集"):
-                        if status != "完了":
-                            st.markdown("**🏃 バトンタッチ**")
-                            n_user = st.selectbox("次へ", list(USERS.keys()), key=f"u_{t_id}")
-                            n_cont = st.text_input("内容", value=f"引継ぎ：{content}", key=f"c_{t_id}")
-                            if st.button("転送実行 🚀", key=f"fw_{t_id}"):
-                                forward_task_local(t_id, n_cont, n_user, current_user)
-                                st.session_state.is_walking = True
-                                st.session_state.walking_target = n_user
+                        elif status == "完了":
+                             if st.button("↩ 戻す", key=f"back_{t_id}", use_container_width=True):
+                                update_task_local(t_id, new_status="対応中")
                                 st.rerun()
-                            st.divider()
                         
-                        st.markdown("**📝 編集**")
-                        e_cont = st.text_input("タイトル修正", value=content, key=f"ec_{t_id}")
-                        if st.button("保存", key=f"sv_{t_id}"):
-                            update_task_local(t_id, new_content=e_cont)
-                            st.rerun()
-                        
-                        if st.button("🗑 削除", key=f"del_{t_id}"):
-                            delete_task_local(t_id)
-                            st.rerun()
+                        if status != "完了":
+                            with st.expander("⚙️ 詳細・編集"):
+                                st.markdown("**📝 タイトル修正・削除**")
+                                e_cont = st.text_input("修正", value=content, key=f"ec_{t_id}")
+                                if st.button("保存", key=f"sv_{t_id}"):
+                                    update_task_local(t_id, new_content=e_cont)
+                                    st.rerun()
+                                if st.button("🗑 削除", key=f"del_{t_id}"):
+                                    delete_task_local(t_id)
+                                    st.rerun()
 
     # 2. 新規依頼
     elif menu == "📝 新規タスク依頼":
