@@ -11,7 +11,6 @@ from datetime import datetime
 #   ⚙️ 設定エリア
 # ==========================================
 # ★ここにGASのURLを確認して貼ってください★
-# デプロイ時は「アクセスできるユーザー：全員」を忘れずに！
 GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
 
 # ユーザー管理
@@ -24,28 +23,6 @@ USERS = {
 ADMIN_USERS = {"森", "社長"} 
 
 st.set_page_config(page_title="MBS Task Walker", page_icon="Ⓜ️", layout="wide")
-
-# ==========================================
-#   🛠 緊急診断エリア (画面の一番上に表示)
-# ==========================================
-# 接続確認用。不要になったらこのブロックを削除してください
-st.markdown("### 🚑 緊急接続テスト")
-if st.button("ここを押して通信テストを実行"):
-    try:
-        st.info(f"通信開始... URL: {GAS_URL[:30]}...")
-        r = requests.get(GAS_URL, timeout=10)
-        st.write(f"Status Code: {r.status_code}")
-        
-        if r.status_code == 200:
-            data = r.json()
-            st.success("✅ 通信成功！データが届いています↓")
-            st.json(data) # データの生中身を表示
-        else:
-            st.error("❌ エラー：GASには繋がりましたが、データが取れません。")
-            st.write(r.text)
-    except Exception as e:
-        st.error(f"❌ 通信失敗：URLが間違っているか、ネットが切れています。\n{e}")
-st.markdown("---") 
 
 # ==========================================
 #   🎨 デザイン (CSS)
@@ -77,8 +54,17 @@ if 'tasks_cache' not in st.session_state: st.session_state['tasks_cache'] = []
 if 'video_cache' not in st.session_state: st.session_state['video_cache'] = {}
 
 def get_now_str():
-    # ★ここを変更しました： 年/月/日 時:分
+    # 年/月/日 時:分
     return datetime.now().strftime("%Y/%m/%d %H:%M")
+
+def show_baton_pass_animation():
+    st.markdown("""
+    <div class="anim-overlay">
+        <div class="runner-book">📘💨</div><div class="receiver-book">📙✨</div>
+        <div class="pass-message">Nice Pass!</div>
+    </div>
+    """, unsafe_allow_html=True)
+    time.sleep(1.5)
 
 def render_video_html(video_path):
     try:
@@ -200,10 +186,16 @@ def login():
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "confirm_id" not in st.session_state: st.session_state.confirm_id = None
 if "fwd_id" not in st.session_state: st.session_state.fwd_id = None
+if "show_anim" not in st.session_state: st.session_state.show_anim = False
 
 if not st.session_state["logged_in"]:
     login()
 else:
+    if st.session_state.show_anim:
+        show_baton_pass_animation()
+        st.session_state.show_anim = False
+        st.rerun()
+
     current_user = st.session_state["user_id"]
     is_admin = current_user in ADMIN_USERS
     tasks = st.session_state['tasks_cache']
@@ -282,6 +274,7 @@ else:
                                 if st.form_submit_button("送信"):
                                     forward_task_local(tid, cont, to, current_user)
                                     st.session_state.fwd_id = None
+                                    st.session_state.show_anim = True
                                     st.rerun()
                         else:
                             if stat == "未着手":
@@ -329,6 +322,7 @@ else:
                 new_obj = {"id": str(uuid.uuid4()), "content": ct, "from_user": current_user, "to_user": tg, "status": "ルーティン" if ir else "未着手", "logs": f"{now} 作成"}
                 if tg == current_user: st.session_state['tasks_cache'].append(new_obj)
                 safe_post({**new_obj, "action":"create"})
+                st.session_state.show_anim = True
                 st.rerun()
     
     elif "通知" in menu:
