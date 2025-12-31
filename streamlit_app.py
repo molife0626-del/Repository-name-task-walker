@@ -12,7 +12,7 @@ from datetime import datetime
 # ==========================================
 # ★ここに新しいGASのウェブアプリURLを貼り付けてください
 # デプロイ時は「アクセスできるユーザー：全員」にすることを忘れずに！
-GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
+GAS_URL = "https://script.google.com/macros/s/AKfycbxFbhiE8ikUs9ebv1BTba9bZbAZ80nWDESVS85Iev1aSitwtwV4VUGE0UBMi3xdyVO7/exec"
 
 # ユーザー管理
 USERS = {
