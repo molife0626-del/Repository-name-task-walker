@@ -7,11 +7,11 @@ from streamlit_lottie import st_lottie
 import plotly.express as px
 import base64
 import random
+import threading  # 非同期処理用に追加
 
 # ==========================================
-#  ⚙️ 設定エリア
+#   ⚙️ 設定エリア
 # ==========================================
-# ★URL設定済み
 GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
 
 # ユーザー管理
@@ -26,50 +26,28 @@ ADMIN_USERS = ["森", "社長"]
 st.set_page_config(page_title="MBS Task Walker", page_icon="Ⓜ️", layout="wide")
 
 # ==========================================
-#  🎨 デザイン (CSS)
+#   🎨 デザイン (CSS)
 # ==========================================
 st.markdown("""
 <style>
-    /* 1. 全体の余白調整 */
-    .block-container {
-        padding-top: 5rem !important;
-        padding-bottom: 3rem !important;
-    }
-    
-    /* 2. 背景色 */
+    .block-container { padding-top: 5rem !important; padding-bottom: 3rem !important; }
     .stApp { background-color: #FFFAF5; }
-
-    /* 3. サイドバー */
     [data-testid="stSidebar"] { background-color: #FFF3E0; border-right: 1px solid #FFCC80; }
-
-    /* 4. テキスト・見出し */
     h1, h2, h3 { color: #E65100 !important; font-family: 'Helvetica Neue', sans-serif; }
-    
-    /* 5. ボタン (MBSオレンジ) */
     .stButton > button {
         background-color: white; color: #E65100; border: 2px solid #E65100;
         border-radius: 8px; font-weight: bold; transition: all 0.3s;
         width: 100%;
     }
-    .stButton > button:hover {
-        background-color: #E65100; color: white; border-color: #E65100;
-    }
-
-    /* 6. カードデザイン */
+    .stButton > button:hover { background-color: #E65100; color: white; border-color: #E65100; }
     [data-testid="stVerticalBlockBorderWrapper"] {
         border-color: #FFE0B2 !important; background-color: white;
         border-radius: 10px; box-shadow: 0 2px 4px rgba(230, 81, 0, 0.1);
     }
-
-    /* 7. スマホ対応 (レスポンシブ) */
     @media (max-width: 768px) {
-        [data-testid="column"] {
-            width: 100% !important; flex: 1 1 auto !important; min-width: 100% !important;
-        }
+        [data-testid="column"] { width: 100% !important; flex: 1 1 auto !important; min-width: 100% !important; }
         h1 { font-size: 1.8em !important; }
     }
-
-    /* 8. アニメーション定義 */
     @keyframes runIn {
         0% { left: -20%; transform: rotate(0deg); }
         20% { transform: rotate(-5deg); }
@@ -84,14 +62,12 @@ st.markdown("""
         0% { opacity: 0; top: 60%; }
         100% { opacity: 1; top: 55%; }
     }
-    
     .anim-overlay {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(255, 250, 245, 0.95); z-index: 99999;
         display: flex; align-items: center; justify-content: center;
         overflow: hidden; pointer-events: none;
     }
-    
     .runner-book {
         position: absolute; font-size: 6rem; top: 40%;
         animation: runIn 1.2s ease-out forwards;
@@ -105,8 +81,6 @@ st.markdown("""
         font-size: 2rem; color: #E65100; font-weight: bold;
         font-family: sans-serif; opacity: 0; animation: textFade 0.5s 1.5s forwards;
     }
-    
-    /* 9. 右上の処理中アイコンを丸いローダーに戻す */
     [data-testid="stStatusWidget"] > div > div > img { display: none; }
     [data-testid="stStatusWidget"] svg { display: none; }
     [data-testid="stStatusWidget"] > div > div {
@@ -114,14 +88,12 @@ st.markdown("""
         border-radius: 50%; animation: spin 1s linear infinite;
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    
     .bearing-loader {
         display: inline-block; width: 20px; height: 20px;
         border: 2px solid #FF9800; border-radius: 50%;
         border-top: 2px solid transparent;
         animation: spin 1.5s linear infinite; margin-right: 5px; position: relative;
     }
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -139,38 +111,56 @@ def show_baton_pass_animation():
     time.sleep(3.0)
     placeholder.empty()
 
-# --- 動画表示関数 ---
-def render_video_html(video_path, width="100%"):
+# --- 動画表示関数 (キャッシュ化) ---
+@st.cache_data(show_spinner=False)
+def get_video_base64(video_path):
     try:
         with open(video_path, "rb") as f:
-            video_content = f.read()
-        video_b64 = base64.b64encode(video_content).decode()
+            return base64.b64encode(f.read()).decode()
+    except FileNotFoundError:
+        return None
+
+def render_video_html(video_path, width="100%"):
+    video_b64 = get_video_base64(video_path)
+    if video_b64:
         video_tag = f"""
             <video width="{width}" autoplay loop muted playsinline style="border-radius: 15px; box-shadow: 0 8px 16px rgba(230, 81, 0, 0.2); max-width: 100%;">
                 <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
             </video>
         """
         st.markdown(video_tag, unsafe_allow_html=True)
-    except FileNotFoundError:
+    else:
         st.warning(f"⚠️ 動画ファイル '{video_path}' が見つかりません。")
 
-# --- 通信関数 ---
-def get_tasks_from_server():
+# --- 通信関数 (最適化済み) ---
+# データ取得のみキャッシュを利用（TTL 60秒）
+@st.cache_data(ttl=60, show_spinner=False)
+def fetch_data_from_gas():
     try:
-        r = requests.get(GAS_URL)
+        r = requests.get(GAS_URL, timeout=10)
         if r.status_code == 200:
             data = r.json()
             if isinstance(data, list) and len(data) > 0:
                 df = pd.DataFrame(data)
                 df = df.fillna("")
-                clean_data = df.to_dict('records')
-                st.session_state['tasks_cache'] = clean_data
-                return clean_data
-            else:
-                st.session_state['tasks_cache'] = []
-                return []
-    except: pass
+                return df.to_dict('records')
+    except:
+        pass
     return []
+
+def get_tasks_from_server(force_update=False):
+    if force_update:
+        fetch_data_from_gas.clear()
+    
+    # キャッシュから取得、なければサーバーへ
+    data = fetch_data_from_gas()
+    
+    # セッションステートに最新を反映（マージ）
+    # ※ローカルで先行更新している場合があるため、基本はサーバーデータを正とするが
+    #  キャッシュが古い場合はローカルの編集が消えるのを防ぐロジックが必要だが、
+    #  今回はシンプルに「サーバー同期」時はサーバー優先とする
+    st.session_state['tasks_cache'] = data
+    return data
 
 def get_unique_tasks():
     if 'tasks_cache' not in st.session_state:
@@ -181,20 +171,30 @@ def get_unique_tasks():
         if 'id' in t and t['id']: unique_map[t['id']] = t
     return list(unique_map.values())
 
-def safe_post(data):
-    try: requests.post(GAS_URL, json=data)
-    except: pass
-    time.sleep(1.0)
-    get_tasks_from_server()
+# 非同期送信用ワーカー
+def _background_post(data):
+    try:
+        requests.post(GAS_URL, json=data, timeout=10)
+    except:
+        pass
 
-# --- アクション ---
+def safe_post(data):
+    # スレッドを立ててバックグラウンド送信（UIをブロックしない）
+    thread = threading.Thread(target=_background_post, args=(data,))
+    thread.start()
+    # ここでの sleep や再 fetch は削除（爆速化のキモ）
+
+# --- アクション (楽観的UI更新) ---
 def update_task_local(task_id, new_status=None, new_content=None):
+    # 1. まずローカルの見た目を即座に変える
     if 'tasks_cache' in st.session_state:
         for t in st.session_state['tasks_cache']:
             if t['id'] == task_id:
                 if new_status: t['status'] = new_status
                 if new_content: t['content'] = new_content
                 break
+    
+    # 2. 裏で送信する
     data = {"action": "update", "id": task_id}
     if new_status: data["status"] = new_status
     if new_content: data["content"] = new_content
@@ -206,21 +206,40 @@ def delete_task_local(task_id):
     safe_post({"action": "delete", "id": task_id})
 
 def forward_task_local(current_id, new_content, new_target, my_name):
+    # ローカル更新：現在のタスクを完了へ
     update_task_local(current_id, new_status="完了")
+    
+    # 新しいタスクIDの発行
     import datetime
     new_id = str(uuid.uuid4())
-    now_str = datetime.datetime.now().strftime("%m/%d %H:%M")
+    
+    # 送信データの作成
     data = {
         "action": "forward", "id": current_id, "new_id": new_id,
         "new_content": new_content, "new_target": new_target,
         "from_user": my_name
     }
+    
+    # 楽観的UI更新：自分宛てのパスならリストに追加（そうでなければリストからは消える）
+    if new_target == st.session_state.get('user_id'):
+        new_task_obj = {
+            "id": new_id, "content": new_content, 
+            "from_user": my_name, "to_user": new_target, 
+            "status": "未着手", "logs": "バトンパス"
+        }
+        if 'tasks_cache' in st.session_state:
+            st.session_state['tasks_cache'].append(new_task_obj)
+
     safe_post(data)
 
 def create_task_local(new_task):
+    # ローカルのリストに即座に追加（自分宛ての場合）
+    # ※他人宛の場合は自分の「依頼済み」リストが必要なら追加するが、今回はマイタスクボードなので
+    #  自分宛てなら即反映、他人宛なら送信のみ
     if new_task['to_user'] == st.session_state.get('user_id'):
         if 'tasks_cache' in st.session_state:
             st.session_state['tasks_cache'].append(new_task)
+            
     new_task["action"] = "create"
     safe_post(new_task)
 
@@ -262,12 +281,12 @@ def login():
                     if uid in USERS and USERS[uid] == pwd:
                         st.session_state["logged_in"] = True
                         st.session_state["user_id"] = uid
-                        get_tasks_from_server()
+                        get_tasks_from_server(force_update=True) # ログイン時は強制取得
                         st.rerun()
                     else: st.error("認証失敗")
 
 # ==========================================
-#  メイン処理
+#   メイン処理
 # ==========================================
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "confirm_done_id" not in st.session_state: st.session_state.confirm_done_id = None
@@ -308,30 +327,23 @@ else:
 
     # 1. マイタスクボード
     if "マイタスク" in menu:
-        # --- ヘッダーエリア（タイトル・同期・履歴スイッチ） ---
         col_h, col_b, col_t = st.columns([3, 1, 1])
         col_h.subheader("📊 マイタスクボード")
         if col_b.button("🔄 同期", use_container_width=True): 
-            get_tasks_from_server()
+            get_tasks_from_server(force_update=True)
             st.rerun()
         
-        # 履歴表示用トグルスイッチ
         show_history = col_t.toggle("🗄️ 完了履歴", value=False)
 
-        # --- レイアウト切り替えロジック ---
         if show_history:
-             # ONの場合: 3(メイン) : 1(履歴)
             main_area, right_sidebar = st.columns([3, 1], gap="large")
         else:
-             # OFFの場合: メインのみ
             main_area = st.container()
             right_sidebar = None
 
-        # === メインエリア ===
         with main_area:
             my_tasks = [t for t in all_tasks if t.get('to_user') == current_user]
             
-            # メイン3カラム
             col1, col2, col3 = st.columns(3)
             with col1: st.error("🛑 未着手")
             with col2:
@@ -422,7 +434,6 @@ else:
                                     delete_task_local(t_id)
                                     st.rerun()
 
-        # === 履歴エリア (スイッチONの時だけ表示) ===
         if show_history and right_sidebar:
             with right_sidebar:
                 st.markdown("#### ✅ 完了済み履歴")
@@ -460,7 +471,7 @@ else:
     elif menu == "🔔 通知センター":
         st.subheader("🔔 通知センター")
         if st.button("最新取得"): 
-            get_tasks_from_server()
+            get_tasks_from_server(force_update=True)
             st.rerun()
         
         tasks_for_me = [t for t in all_tasks if t.get('to_user') == current_user]
@@ -487,7 +498,7 @@ else:
     elif "チーム分析" in menu:
         st.subheader("📊 チーム分析・レポート")
         if st.button("データ更新"): 
-            get_tasks_from_server()
+            get_tasks_from_server(force_update=True)
             st.rerun()
 
         if all_tasks:
