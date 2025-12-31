@@ -12,7 +12,7 @@ import random
 #  ⚙️ 設定エリア
 # ==========================================
 # ★URL設定済み
-GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
+GAS_URL = "https://script.google.com/macros/s/AKfycbyH0Mw-GnshnEnClFzMUYNrPxtAHoXrSpiXFBnlYU61EA9vWz32LHBBl6B9MmJJyKV5/exec"
 
 # ユーザー管理
 USERS = {
