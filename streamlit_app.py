@@ -16,12 +16,12 @@ GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd
 
 # ユーザー管理
 USERS = {
-    "森": "3457",
-    "社長": "3457",
+    "自分": "1111",
+    "上司": "2222",
     "経理": "3333",
     "メンバーA": "aaaa"
 }
-ADMIN_USERS = ["森", "社長"]
+ADMIN_USERS = ["上司", "経理"]
 
 st.set_page_config(page_title="MBS Task Walker", page_icon="Ⓜ️", layout="wide")
 
@@ -226,7 +226,7 @@ def create_task_local(new_task):
 
 # --- 認証 ---
 def login():
-    VIDEO_FILENAME = "Video Project 3.mp4"
+    VIDEO_FILENAME = "TaskWalkerアプリの動画生成.mp4"
 
     CATCHPHRASES = [
         {"main": "停滞を、前進へ。<br>タスクが歩き出す。", "sub": "Task Walker gives footsteps to your workflow."},
@@ -526,4 +526,3 @@ else:
                 cols_to_show = ['content', 'status', 'from_user', 'to_user']
                 st.dataframe(view_df[cols_to_show].rename(columns={'content':'タイトル', 'status':'状態', 'from_user':'依頼者', 'to_user':'担当'}), use_container_width=True, hide_index=True)
             else: st.info("表示できるデータがありません")
-
