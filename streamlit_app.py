@@ -10,6 +10,7 @@ from datetime import datetime
 # ==========================================
 #   ⚙️ 設定エリア
 # ==========================================
+# ★ここに新しいGASのウェブアプリURLを貼り付けてください
 GAS_URL = "https://script.google.com/macros/s/AKfycbzqYGtlTBRVPiV6Ik4MdZM4wSYSQd5lDvHzx0zfwjUk1Cpb9woC3tKppCOKQ364ppDp/exec"
 
 # ユーザー管理
@@ -105,16 +106,20 @@ def render_video_html(video_path):
             <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
         </video>""", unsafe_allow_html=True)
 
-# --- 通信 ---
+# --- 通信周り (同期・非同期ハイブリッド) ---
+
 def _background_worker(payload):
+    # 送信専用のバックグラウンド処理
     try: requests.post(GAS_URL, json=payload, timeout=5)
     except: pass
 
 def safe_post(data):
+    # 非同期でデータを送信する（画面をブロックしない）
     t = threading.Thread(target=_background_worker, args=(data,), daemon=True)
     t.start()
 
 def get_tasks_from_server_async():
+    # 裏側でデータを最新にする（更新ボタン用）
     def _fetch():
         try:
             r = requests.get(GAS_URL, timeout=8)
@@ -127,6 +132,20 @@ def get_tasks_from_server_async():
     
     t = threading.Thread(target=_fetch, daemon=True)
     t.start()
+
+def get_tasks_sync():
+    """ログイン時専用：確実にデータを取ってから次へ進む関数"""
+    try:
+        r = requests.get(GAS_URL, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, list):
+                clean_data = [{k: (v if v is not None else "") for k, v in item.items()} for item in data]
+                st.session_state['tasks_cache'] = clean_data
+                return True
+    except:
+        pass
+    return False
 
 # --- ロジック（履歴機能付き） ---
 def update_task_local(task_id, new_status=None, new_content=None, log_msg=None):
@@ -203,13 +222,18 @@ def login():
             with st.form("login"):
                 uid = st.text_input("ID")
                 pwd = st.text_input("Password", type="password")
-                if st.form_submit_button("LOGIN 👟", use_container_width=True):
+                submit = st.form_submit_button("LOGIN 👟", use_container_width=True)
+                
+                if submit:
                     if USERS.get(uid) == pwd:
+                        # ★修正：ログイン時はデータをしっかり待って取得する
+                        with st.spinner("データを読み込んでいます..."):
+                            get_tasks_sync()
+                            
                         st.session_state["logged_in"] = True
                         st.session_state["user_id"] = uid
-                        get_tasks_from_server_async()
                         st.rerun()
-                    else: st.error("NG")
+                    else: st.error("パスワードが違います")
 
 # ==========================================
 #   メイン処理
